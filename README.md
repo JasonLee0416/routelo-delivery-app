@@ -1,65 +1,182 @@
-# RouteLO
+# Routelo v2
 
-꽃배달 기사를 위한 배달 관리 앱. **인수증 OCR 등록 → 동선 최적화 → 주유 손익 관리**를 하나로 묶은 로컬 우선(local-first) Expo 앱입니다.
+**An Android-first delivery operations prototype that turns Korean paper
+receipts into reviewable delivery records and practical visit sequences.**
 
-> 앱 소스는 [`routelo/`](routelo) 하위에 있습니다. 아래 명령은 모두 `routelo/`에서 실행합니다.
+Routelo v2 explores a problem that ordinary navigation apps do not solve:
+delivery work begins before an address is opened in a map. Drivers must first
+interpret receipts, identify strict deadlines and event times, correct
+uncertain information, and decide which stop should come next.
 
-## 주요 기능
-- **배달 관리** — 오늘의 배달 목록, 대기/완료 필터, 예식·엄수 시간 우선 표시
-- **인수증 OCR** — 촬영/갤러리 인수증에서 배달 정보 추출 (현재 온디바이스 데모 파이프라인)
-- **동선 최적화** — 최근접 이웃 방문 순서 + Google Maps 길찾기(키 불필요 Directions URL)
-- **주유 손익** — 일/주/월 수익·유류비·실측 연비, 주유·주행거리·차량 기록
+This repository brings those steps into one local-first mobile workflow.
 
-## 기술 스택
-- Expo SDK 56 · React Native 0.85 · React 19 · TypeScript (strict)
-- Material Design 3 기반 UI, `@react-native-async-storage`(상태) + `expo-file-system`(OCR 레코드)
+> **Current status:** active engineering prototype. The review UI, receipt
+> normalization, record model, route-order heuristic, and Google Maps handoff
+> are implemented. Native text recognition, road-traffic optimization,
+> production storage, and several CRUD flows remain on the roadmap.
 
-## 빠른 시작
+## Workflow
+
+```text
+Receipt image
+  → capture-quality review
+  → OCR candidate extraction
+  → Korean field normalization
+  → confidence-based human review
+  → lossless local receipt record
+  → delivery dashboard and deadline risk
+  → suggested visit order
+  → Google Maps navigation handoff
+```
+
+## Why This Project Is Different
+
+Routelo v2 does not treat OCR output as trusted application data.
+
+It preserves three layers:
+
+- `raw`: original OCR evidence;
+- `fields`: normalized delivery values;
+- `unmapped`: text that could not be classified without silently discarding it.
+
+Receipt labels are matched through normalized aliases, substring checks, and
+Levenshtein similarity. User corrections can extend the alias registry so
+future receipts from similar vendors become easier to process.
+
+## Implemented Today
+
+### Delivery operations
+
+- Material Design 3 mobile dashboard
+- Delivery status and schedule views
+- Strict-deadline and event-time emphasis
+- Nearest-neighbor visit-order prototype
+- Google Maps Directions handoff
+- Notification and operating-preference screens
+
+### Receipt processing
+
+- Camera and gallery input flow
+- Capture-quality review UI
+- Multiple preprocessing-candidate model
+- Korean receipt field candidates
+- Field-level and document-level confidence
+- Editable review and alternative candidates
+- Required-field validation before registration
+- Lossless raw, normalized, and unmapped data model
+- External JSON receipt storage
+- Learnable label-alias registry
+
+## Honest Capability Matrix
+
+| Area | Status |
+|---|---|
+| Delivery dashboard and review UI | Implemented |
+| Korean label normalization | Implemented |
+| Receipt record and alias storage | Implemented |
+| Nearest-neighbor visit ordering | Prototype |
+| Google Maps navigation handoff | Implemented |
+| Camera/gallery interaction | Implemented |
+| Native ML Kit text recognition | Planned |
+| Road distance and live traffic optimization | Planned |
+| Production database and encryption | Planned |
+| Full delivery CRUD and completion evidence | In progress |
+
+## Engineering Decisions
+
+### Human review over silent automation
+
+Low-confidence OCR fields are surfaced for review. Required fields must be
+confirmed before a receipt becomes a delivery record.
+
+### Local-first records
+
+Receipt records are designed to remain useful without continuous network
+access. Cloud OCR is planned only as a selective fallback for uncertain fields.
+
+### Data preservation
+
+Unmatched OCR text is retained instead of dropped. This supports debugging,
+future parser improvements, and vendor-specific learning.
+
+### Navigation handoff
+
+The current app suggests a visit order and passes destinations to Google Maps.
+It does not claim to calculate production-grade traffic-aware routes itself.
+
+## Project Evolution
+
+Routelo v2 integrates lessons from two earlier experiments:
+
+```text
+Routelo (February 2026)
+  mobile destination entry, map interaction, nearest-neighbor ordering
+       +
+Flogg (February 2026)
+  receipt capture, multimodal extraction, SQLite history
+       ↓
+Routelo v2 (June 2026)
+  reviewable OCR records + delivery operations + route workflow
+```
+
+- [Routelo prototype](https://github.com/JasonLee0416/Routelo)
+- [Flogg receipt prototype](https://github.com/JasonLee0416/Flogg)
+- [Detailed evolution notes](docs/PROJECT_EVOLUTION.md)
+
+The earlier repositories remain public as engineering artifacts. They show
+which assumptions were tested, which limitations were discovered, and why the
+current architecture changed.
+
+## Technology
+
+- Expo SDK 56
+- React Native 0.85 and React 19
+- TypeScript
+- Material Design 3-inspired UI
+- AsyncStorage for prototype state
+- Expo FileSystem for OCR records
+- Google Maps Directions URL integration
+
+## Run Locally
+
+The application source is under [`routelo/`](routelo).
+
 ```bash
 cd routelo
 npm install
-npm run start      # Expo Dev Server (QR로 Expo Go 실행)
-npm run ios        # iOS 시뮬레이터
-npm run android    # Android 에뮬레이터
-npm run web        # 웹
+npm start
 ```
 
-## 테스트
+Available scripts:
+
 ```bash
-cd routelo
-npm test           # OCR 정규화(app/ocr) 단위 테스트
+npm run android
+npm run ios
+npm run web
+npm test
 ```
 
-## 프로젝트 구조
-```
+The current OCR service uses a demo recognition adapter. Native OCR requires an
+Expo development build and is intentionally not represented as complete.
+
+## Repository Structure
+
+```text
 routelo/
-├─ App.tsx                  # 루트 → app/index 의 RouteloApp
-├─ app/
-│  ├─ index.tsx             # 5개 탭 화면 + 상태/저장
-│  ├─ data.ts               # 지역 목록·기본 설정·샘플 데이터
-│  ├─ models.ts             # 도메인 타입
-│  ├─ ocr/                  # 인수증 정규화·저장 (RN 비의존, 단위 테스트 가능)
-│  │  ├─ normalize.ts       #   라벨→필드 휴리스틱 매핑 (별칭·퍼지·무손실)
-│  │  ├─ fieldRegistry.ts   #   정규 필드 × 별칭 사전 (학습 가능)
-│  │  ├─ schema.ts          #   raw / fields / unmapped 3층 레코드
-│  │  └─ storage.ts         #   외부 JSON 파일 저장 + 별칭 학습
-│  └─ services/
-│     ├─ maps.ts            # 거리·동선·Google Maps 길찾기
-│     └─ ocr.ts             # 촬영 품질 검사 + 필드 파싱 파이프라인
-└─ docs/OCR_PIPELINE.md     # OCR 설계 문서
+├─ app/index.tsx              screens and prototype application state
+├─ app/models.ts              delivery domain types
+├─ app/ocr/                   schema, normalization, aliases, storage
+├─ app/services/maps.ts       distance, ordering, Maps handoff
+├─ app/services/ocr.ts        capture checks and OCR adapter
+└─ docs/OCR_PIPELINE.md       production OCR architecture
 ```
 
-## OCR 파이프라인
-현재 텍스트 인식은 **데모**(고정 텍스트)이고, 추출/정규화 로직은 실제 동작합니다.
-- 설계: [`routelo/docs/OCR_PIPELINE.md`](routelo/docs/OCR_PIPELINE.md)
-- 라벨 정규화/병합: [`routelo/app/ocr/`](routelo/app/ocr) — 인수증마다 다른 라벨명(예: 발주처/발주/발주자)을 추론 없이 휴리스틱으로 한 필드에 모으고, 매칭 실패분은 `unmapped`로 보존합니다.
-- 온디바이스 실인식(ML Kit / PP-OCRv5)은 **Expo Dev Build**가 필요합니다(Expo Go 불가).
+## Documentation
 
-## 환경 변수
-현재 필요 없음. 지도는 키 없는 Google Maps Directions URL을 쓰고, OCR은 온디바이스 데모입니다.
+- [OCR architecture](routelo/docs/OCR_PIPELINE.md)
+- [Project roadmap](todo.md)
+- [Project evolution](docs/PROJECT_EVOLUTION.md)
 
-## 로드맵
-완성 작업 목록은 [`todo.md`](todo.md)를 참고하세요.
+## License
 
-## 라이선스
-[`routelo/LICENSE`](routelo/LICENSE) 참조.
+[MIT](routelo/LICENSE)
