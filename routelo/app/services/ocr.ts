@@ -1,4 +1,6 @@
 import { CaptureQuality, OcrFieldKey, OcrFieldResult, OcrPipelineResult } from '../models';
+import { DEFAULT_FIELD_REGISTRY } from '../ocr/fieldRegistry';
+import { normalizeReceipt } from '../ocr/normalize';
 
 type ImageAssetInfo = {
   width?: number;
@@ -66,9 +68,6 @@ const normalizePhone = (value: string) => {
   return value;
 };
 
-const lineNear = (lines: string[], keywords: string[]) =>
-  lines.find((line) => keywords.some((keyword) => line.includes(keyword))) || '';
-
 const candidates = (text: string, pattern: RegExp) =>
   [...text.matchAll(pattern)].map((match) => match[0]);
 
@@ -132,67 +131,68 @@ export function parseReceiptText(rawText: string, quality: CaptureQuality): OcrP
   const text = rawText.replace(/[ \t]+/g, ' ').trim();
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 
+  // 라벨→필드 매핑은 app/ocr 의 정규화 백본에 위임한다.
+  // (별칭 사전 + 퍼지 매칭 + 무손실 unmapped 보존)
+  const { fields: mapped, unmapped } = normalizeReceipt(lines, DEFAULT_FIELD_REGISTRY);
+
+  // 값 후처리(시간/전화/날짜 정규화·대안값·신뢰도)는 기존 로직을 그대로 유지한다.
+  const timeRe = /(?:오전|오후)?\s*\d{1,2}(?::\d{2}|시(?:\s*\d{1,2}분)?)/;
+  const extractTime = (value: string) => value.match(timeRe)?.[0] || value;
   const timeMatches = candidates(
     text,
     /(?:오전|오후)?\s*\d{1,2}(?::\d{2}|시(?:\s*\d{1,2}분)?)(?:까지)?/g,
   );
-  const strictLine = lineNear(lines, ['배달 엄수', '배송 시간', '도착 시간', '납품 시간', '마감', '까지']);
-  const eventLine = lineNear(lines, ['예식 시간', '예식', '본식', '웨딩', '행사 시간']);
-  const strictMatch = strictLine.match(/(?:오전|오후)?\s*\d{1,2}(?::\d{2}|시(?:\s*\d{1,2}분)?)/);
-  const eventMatch = eventLine.match(/(?:오전|오후)?\s*\d{1,2}(?::\d{2}|시(?:\s*\d{1,2}분)?)/);
+  const phoneMatches = candidates(
+    text,
+    /(?:01[016789][-\s]?\d{3,4}[-\s]?\d{4}|0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4})/g,
+  );
 
-  const dateLine = lineNear(lines, ['배송일', '배달일', '납품일', '예식일']);
-  const dateMatch =
-    dateLine.match(/20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2}/) ||
-    text.match(/20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2}/);
-  const normalizedDate = dateMatch?.[0].replace(/[./]/g, '-') || '';
-
-  const phoneMatches = candidates(text, /(?:01[016789][-\s]?\d{3,4}[-\s]?\d{4}|0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4})/g);
-  const recipientLine = lineNear(lines, ['수령자', '담당자', '인수자', '받는 분', '고객명']);
-  const phoneLine = lineNear(lines, ['연락처', '휴대폰', '전화']);
-  const phone = normalizePhone(phoneLine.match(/0[\d\-\s]{8,13}/)?.[0] || phoneMatches[0] || '');
-
-  const addressLine = lineNear(lines, ['배송주소', '배달주소', '배송지', '주소']);
-  const address = addressLine.replace(/^(배송주소|배달주소|배송지|주소)\s*[:：]?\s*/, '');
-  const venueLine = lineNear(lines, ['업체명', '상호명', '예식장', '웨딩홀', '배송처']);
-  const venue = venueLine.replace(/^(업체명|상호명|예식장|웨딩홀|배송처)\s*[:：]?\s*/, '');
-  const recipient = recipientLine
-    .replace(/^(수령자|담당자|인수자|받는 분|고객명)\s*[:：]?\s*/, '')
-    .replace(/\s*(실장|팀장|담당자)$/, ' $1');
-  const orderLine = lineNear(lines, ['주문번호', '접수번호', '관리번호', 'Order', 'No.']);
+  const normalizedDate = (
+    mapped.deliveryDate?.match(/20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2}/)?.[0] ||
+    text.match(/20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2}/)?.[0] ||
+    ''
+  ).replace(/[./]/g, '-');
+  const strictTime = mapped.strictTime ? normalizeTime(extractTime(mapped.strictTime)) : '';
+  const eventTime = mapped.eventTime ? normalizeTime(extractTime(mapped.eventTime)) : '';
+  const phone = normalizePhone(mapped.recipientTel || phoneMatches[0] || '');
+  const venue = mapped.venueName || '';
+  const address = mapped.deliveryAddress || '';
+  const recipient = (mapped.recipientName || '').replace(/\s*(실장|팀장|담당자)$/, ' $1');
   const orderNumber =
-    orderLine.match(/[A-Z]{1,5}[-\d]{5,}/i)?.[0] ||
-    orderLine.replace(/^(주문번호|접수번호|관리번호|Order|No\.)\s*[:：]?\s*/i, '');
-  const memoLine = lineNear(lines, ['특이사항', '요청사항', '메모', '주의', '비고', '전달사항']);
-  const memo = memoLine.replace(/^(특이사항|요청사항|메모|주의|비고|전달사항)\s*[:：]?\s*/, '');
+    mapped.orderNumber?.match(/[A-Z]{1,5}[-\d]{5,}/i)?.[0] || mapped.orderNumber || '';
+  const memo = mapped.memo || '';
 
-  const strictTime = strictMatch ? normalizeTime(strictMatch[0]) : '';
-  const eventTime = eventMatch ? normalizeTime(eventMatch[0]) : '';
   const logicalTimeBonus =
     strictTime && eventTime && strictTime < eventTime ? 8 : strictTime && eventTime ? -18 : 0;
 
   const fields = [
-    field('deliveryDate', normalizedDate, dateLine ? 94 : 70, dateLine || dateMatch?.[0] || ''),
+    field('deliveryDate', normalizedDate, mapped.deliveryDate ? 94 : 70, mapped.deliveryDate || ''),
     field(
       'strictTime',
       strictTime,
       Math.max(45, 89 + logicalTimeBonus),
-      strictLine,
+      mapped.strictTime || '',
       timeMatches.map(normalizeTime).filter((value) => value !== strictTime),
     ),
     field(
       'eventTime',
       eventTime,
       Math.max(45, 91 + logicalTimeBonus),
-      eventLine,
+      mapped.eventTime || '',
       timeMatches.map(normalizeTime).filter((value) => value !== eventTime),
     ),
-    field('venueName', venue, venueLine ? 91 : 48, venueLine),
-    field('deliveryAddress', address, addressLine ? 88 : 42, addressLine),
-    field('recipientName', recipient, recipientLine ? 82 : 40, recipientLine),
-    field('recipientTel', phone, phoneLine ? 96 : 72, phoneLine, phoneMatches.map(normalizePhone)),
-    field('orderNumber', orderNumber, orderLine ? 93 : 50, orderLine),
-    field('memo', memo, memoLine ? 86 : 45, memoLine),
+    field('venueName', venue, mapped.venueName ? 91 : 48, mapped.venueName || ''),
+    field('deliveryAddress', address, mapped.deliveryAddress ? 88 : 42, mapped.deliveryAddress || ''),
+    field('recipientName', recipient, mapped.recipientName ? 82 : 40, mapped.recipientName || ''),
+    field(
+      'recipientTel',
+      phone,
+      mapped.recipientTel ? 96 : 72,
+      mapped.recipientTel || '',
+      phoneMatches.map(normalizePhone),
+    ),
+    field('orderNumber', orderNumber, mapped.orderNumber ? 93 : 50, mapped.orderNumber || ''),
+    field('memo', memo, mapped.memo ? 86 : 45, mapped.memo || ''),
   ];
 
   const requiredFields = fields.filter((item) => item.required);
@@ -208,6 +208,7 @@ export function parseReceiptText(rawText: string, quality: CaptureQuality): OcrP
     quality,
     processingMs: Date.now() - started + 860,
     variantsCompared: 6,
+    unmapped,
   };
 }
 
