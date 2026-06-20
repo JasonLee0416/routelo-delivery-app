@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -64,6 +65,17 @@ const emptyOcrForm: OcrForm = {
 
 function money(value: number) {
   return `${CURRENCY.format(Math.round(value))}원`;
+}
+
+function callNumber(tel: string) {
+  const dialable = tel.replace(/[^0-9+]/g, '');
+  if (!dialable) {
+    Alert.alert('연락처 없음', '저장된 전화번호가 없습니다.');
+    return;
+  }
+  Linking.openURL(`tel:${dialable}`).catch(() =>
+    Alert.alert('전화 연결 실패', '이 기기에서 전화를 걸 수 없습니다.'),
+  );
 }
 
 function SectionTitle({
@@ -170,7 +182,9 @@ function DeliveryCard({
             <Text style={[styles.vendorName, dark && styles.darkText]}>{delivery.orderVendor}</Text>
             <Text style={[styles.vendorTel, dark && styles.darkMutedText]}>{delivery.orderVendorTel}</Text>
           </View>
-          <Ionicons name="call-outline" size={17} color="#2E6BFF" />
+          <Pressable hitSlop={8} onPress={() => callNumber(delivery.orderVendorTel)}>
+            <Ionicons name="call-outline" size={17} color="#2E6BFF" />
+          </Pressable>
         </View>
         <View style={styles.vendorDivider} />
         <View style={styles.vendorLine}>
@@ -179,7 +193,9 @@ function DeliveryCard({
             <Text style={[styles.vendorName, dark && styles.darkText]}>{delivery.deliveryVendor}</Text>
             <Text style={[styles.vendorTel, dark && styles.darkMutedText]}>{delivery.deliveryVendorTel}</Text>
           </View>
-          <Ionicons name="call-outline" size={17} color="#2E6BFF" />
+          <Pressable hitSlop={8} onPress={() => callNumber(delivery.deliveryVendorTel)}>
+            <Ionicons name="call-outline" size={17} color="#2E6BFF" />
+          </Pressable>
         </View>
       </View>
       <View style={styles.infoLine}>
@@ -195,13 +211,21 @@ function DeliveryCard({
         </Text>
       </View>
 
+      {!!delivery.imageUri && (
+        <Image
+          source={{ uri: delivery.imageUri }}
+          style={styles.receiptThumb}
+          resizeMode="cover"
+        />
+      )}
+
       <View style={styles.deliveryFooter}>
         <View style={styles.feeWrap}>
           <Text style={styles.distanceText}>{delivery.distanceKm.toFixed(1)}km</Text>
           <Text style={styles.feeText}>{money(delivery.fee)}</Text>
         </View>
         <View style={styles.cardActions}>
-          <Pressable style={styles.iconButton}>
+          <Pressable style={styles.iconButton} onPress={() => callNumber(delivery.recipientTel)}>
             <Ionicons name="call-outline" size={19} color="#2E6BFF" />
           </Pressable>
           <Pressable
@@ -666,12 +690,11 @@ function RouteScreen({
 }) {
   const dark = useDarkMode();
   const pending = deliveries.filter((delivery) => delivery.status === 'pending');
-  const [route, setRoute] = useState(() => optimizeByNearestNeighbor(pending));
   const [optimized, setOptimized] = useState(true);
-
-  useEffect(() => {
-    setRoute(optimizeByNearestNeighbor(pending));
-  }, [deliveries]);
+  const route = useMemo(
+    () => (optimized ? optimizeByNearestNeighbor(pending) : pending),
+    [deliveries, optimized],
+  );
 
   const totalDistance = route.reduce((sum, item) => sum + item.distanceKm, 0);
   const bounds = {
@@ -681,10 +704,15 @@ function RouteScreen({
     maxLon: Math.max(...route.map((item) => item.longitude), 127.11),
   };
 
-  const optimize = () => {
-    setRoute(optimizeByNearestNeighbor(pending));
-    setOptimized(true);
-    Alert.alert('동선 최적화 완료', '현재 위치에서 가까운 순서로 경유지를 재정렬했습니다.');
+  const toggleOptimize = () => {
+    const next = !optimized;
+    setOptimized(next);
+    Alert.alert(
+      next ? '동선 최적화 완료' : '기본 순서',
+      next
+        ? '현재 위치에서 가까운 순서로 경유지를 재정렬했습니다.'
+        : '인수증 등록 순서로 되돌렸습니다.',
+    );
   };
 
   return (
@@ -751,9 +779,9 @@ function RouteScreen({
             예상 {totalDistance.toFixed(1)}km · 약 {Math.round(totalDistance * 4.2)}분
           </Text>
         </View>
-        <Pressable style={styles.optimizeButton} onPress={optimize}>
+        <Pressable style={styles.optimizeButton} onPress={toggleOptimize}>
           <Ionicons name="git-compare-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.optimizeButtonText}>다시 최적화</Text>
+          <Text style={styles.optimizeButtonText}>{optimized ? '기본 순서로' : '동선 최적화'}</Text>
         </Pressable>
       </View>
 
@@ -1429,7 +1457,7 @@ export default function RouteloApp() {
     );
   };
 
-  const registerOcr = async (form: OcrForm) => {
+  const registerOcr = async (form: OcrForm, imageUri?: string) => {
     const coordinate = await geocodeAddress(form.deliveryAddress);
     const mockDistance = 3 + ((form.deliveryAddress.length * 7) % 230) / 10;
     const delivery: Delivery = {
@@ -1448,6 +1476,7 @@ export default function RouteloApp() {
       status: 'pending',
       distanceKm: mockDistance,
       fee: calculateFeeByAddress(form.deliveryAddress, settings),
+      imageUri,
       ...coordinate,
     };
     setDeliveries((current) => [delivery, ...current]);
@@ -1858,6 +1887,7 @@ const styles = StyleSheet.create({
   scannerTitle: { color: '#2A3853', fontSize: 15, fontWeight: '800' },
   scannerCaption: { color: '#8794A8', fontSize: 11, marginTop: 6 },
   receiptImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  receiptThumb: { width: '100%', height: 130, borderRadius: 14, marginTop: 12 },
   processingOverlay: {
     position: 'absolute',
     left: 0,

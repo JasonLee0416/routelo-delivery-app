@@ -18,6 +18,7 @@ export type Delivery = {
   fee: number;
   latitude: number;
   longitude: number;
+  imageUri?: string;
 };
 
 export type FeeSettings = {
