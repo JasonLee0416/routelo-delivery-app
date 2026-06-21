@@ -1,8 +1,8 @@
-import { OcrForm } from '../models';
+import { OcrFieldKey } from '../models';
 
-// 인수증 정규화 필드 키는 OcrForm과 1:1로 맞춘다.
-// (PR3에서 ReceiptRecord.fields → OcrForm 변환을 무손실로 하기 위함)
-export type ReceiptFieldKey = keyof OcrForm;
+// 정규화 필드 키는 앱의 단일 진실 OcrFieldKey를 그대로 쓴다.
+// (services/ocr.ts 파이프라인과 동일한 필드 집합)
+export type ReceiptFieldKey = OcrFieldKey;
 
 // OCR 엔진이 뱉는 원본 한 줄. text만 보관해도 무손실이며,
 // box는 디버깅/재정렬용 옵션(기본 미저장 → 용량 절약).

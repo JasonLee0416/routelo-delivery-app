@@ -99,4 +99,6 @@ export type OcrPipelineResult = {
   quality: CaptureQuality;
   processingMs: number;
   variantsCompared: number;
+  // 어떤 필드에도 매핑되지 않은 줄(라벨/값). 버리지 않고 보존한다(무손실).
+  unmapped: { label: string; value: string }[];
 };

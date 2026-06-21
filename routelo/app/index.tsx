@@ -1068,6 +1068,7 @@ function OcrScannerModal({
       quality: inspectCaptureQuality(info),
       processingMs: 0,
       variantsCompared: 0,
+      unmapped: [],
     });
     setStage('quality');
   };
@@ -1083,6 +1084,7 @@ function OcrScannerModal({
       quality: inspectCaptureQuality(info),
       processingMs: 0,
       variantsCompared: 0,
+      unmapped: [],
     });
     setStage('quality');
   };
