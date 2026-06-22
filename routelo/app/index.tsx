@@ -30,6 +30,7 @@ import { optimizeByNearestNeighbor } from './services/maps';
 import {
   DEMO_RECEIPT_TEXT,
   inspectCaptureQuality,
+  OcrNoTextDetectedError,
   OcrRecognizerUnavailableError,
   runHybridOcr,
 } from './services/ocr';
@@ -1123,7 +1124,7 @@ function OcrScannerModal({
       setStage('quality');
       Alert.alert(
         'OCR 인식 준비 중',
-        error instanceof OcrRecognizerUnavailableError
+        error instanceof OcrRecognizerUnavailableError || error instanceof OcrNoTextDetectedError
           ? error.message
           : '인수증을 분석하지 못했습니다. 다시 촬영해 주세요.',
       );
@@ -1357,7 +1358,11 @@ function OcrScannerModal({
                 </View>
                 <View style={styles.ocrSummaryMeta}>
                   <Text style={styles.ocrSummaryMetaText}>
-                    {result.engine === 'mlkit-demo' ? '1차 모바일 OCR' : '2차 고성능 OCR 재시도'}
+                    {result.engine === 'mlkit'
+                      ? 'Android ML Kit 한국어 OCR'
+                      : result.engine === 'mlkit-demo'
+                        ? '샘플 모바일 OCR'
+                        : '2차 고성능 OCR 재시도'}
                   </Text>
                   <Text style={styles.ocrSummaryMetaText}>
                     {result.variantsCompared}개 전처리 비교 · {result.processingMs}ms

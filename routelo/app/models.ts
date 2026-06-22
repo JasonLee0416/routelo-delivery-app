@@ -92,8 +92,18 @@ export type CaptureQuality = {
 };
 
 export type OcrPipelineResult = {
-  engine: 'mlkit-demo' | 'cloud-fallback-demo';
+  engine: 'mlkit' | 'mlkit-demo' | 'cloud-fallback-demo';
   rawText: string;
+  recognizedLines?: Array<{
+    text: string;
+    boundingBox?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    cornerPoints?: Array<{ x: number; y: number }>;
+  }>;
   fields: OcrFieldResult[];
   documentConfidence: number;
   quality: CaptureQuality;

@@ -18,12 +18,16 @@ const quality = {
 
 describe('OCR zero-fabrication guard', () => {
   it('rejects a real capture when no recognizer text exists', async () => {
+    const recognizer = jest.fn().mockRejectedValue(
+      new Error('Native recognizer unavailable'),
+    );
+
     await expect(
       runHybridOcr({
         uri: 'file:///captured-receipt.jpg',
         width: 1440,
         height: 1920,
-      }),
+      }, undefined, recognizer),
     ).rejects.toBeInstanceOf(OcrRecognizerUnavailableError);
   });
 
@@ -32,5 +36,27 @@ describe('OCR zero-fabrication guard', () => {
 
     expect(result.rawText).toContain('FL-20260621-1842');
     expect(result.fields.length).toBeGreaterThan(0);
+  });
+
+  it('parses actual ML Kit text returned for a captured image', async () => {
+    const recognizer = jest.fn().mockResolvedValue({
+      fullText: DEMO_RECEIPT_TEXT,
+      lines: [{ text: '주문번호 FL-20260621-1842' }],
+      processingMs: 321,
+    });
+
+    const result = await runHybridOcr({
+      uri: 'file:///captured-receipt.jpg',
+      width: 1440,
+      height: 1920,
+    }, undefined, recognizer);
+
+    expect(recognizer).toHaveBeenCalledWith(
+      'file:///captured-receipt.jpg',
+    );
+    expect(result.engine).toBe('mlkit');
+    expect(result.processingMs).toBe(321);
+    expect(result.rawText).toContain('FL-20260621-1842');
+    expect(result.recognizedLines?.[0].text).toContain('주문번호');
   });
 });

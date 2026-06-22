@@ -9,10 +9,34 @@ type ImageAssetInfo = {
   fileSize?: number;
 };
 
+type RecognizedText = {
+  fullText: string;
+  processingMs: number;
+  lines?: Array<{
+    text: string;
+    boundingBox?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    cornerPoints?: Array<{ x: number; y: number }>;
+  }>;
+};
+
+type RecognizeImage = (imageUri: string) => Promise<RecognizedText>;
+
 export class OcrRecognizerUnavailableError extends Error {
-  constructor() {
-    super('실제 OCR 인식 엔진이 아직 연결되지 않았습니다. 촬영한 사진에서 임의의 정보를 생성하지 않습니다.');
+  constructor(message = '실제 OCR 인식 엔진을 사용할 수 없습니다. 촬영한 사진에서 임의의 정보를 생성하지 않습니다.') {
+    super(message);
     this.name = 'OcrRecognizerUnavailableError';
+  }
+}
+
+export class OcrNoTextDetectedError extends Error {
+  constructor() {
+    super('사진에서 인식 가능한 글자를 찾지 못했습니다. 인수증 전체가 선명하게 보이도록 다시 촬영해 주세요.');
+    this.name = 'OcrNoTextDetectedError';
   }
 }
 
@@ -223,11 +247,41 @@ export function parseReceiptText(rawText: string, quality: CaptureQuality): OcrP
 export async function runHybridOcr(
   asset: ImageAssetInfo,
   rawText?: string,
+  recognizeImage?: RecognizeImage,
 ): Promise<OcrPipelineResult> {
   const quality = inspectCaptureQuality(asset);
-  if (!rawText?.trim()) {
-    throw new OcrRecognizerUnavailableError();
+  if (rawText?.trim()) {
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    return parseReceiptText(rawText, quality);
   }
-  await new Promise((resolve) => setTimeout(resolve, 900));
-  return parseReceiptText(rawText, quality);
+  if (!asset.uri?.trim()) {
+    throw new OcrRecognizerUnavailableError('촬영한 인수증 이미지가 없습니다.');
+  }
+
+  try {
+    const recognize = recognizeImage || (async (imageUri: string) => {
+      const { recognizeReceiptWithMlKit } = await import('./recognizer');
+      return recognizeReceiptWithMlKit(imageUri);
+    });
+    const recognized = await recognize(asset.uri);
+    if (!recognized.fullText.trim()) {
+      throw new OcrNoTextDetectedError();
+    }
+
+    const parsed = parseReceiptText(recognized.fullText, quality);
+    return {
+      ...parsed,
+      engine: 'mlkit',
+      recognizedLines: recognized.lines,
+      processingMs: recognized.processingMs,
+      variantsCompared: 1,
+    };
+  } catch (error) {
+    if (error instanceof OcrNoTextDetectedError) throw error;
+    throw new OcrRecognizerUnavailableError(
+      error instanceof Error
+        ? `ML Kit OCR 실행에 실패했습니다: ${error.message}`
+        : undefined,
+    );
+  }
 }
