@@ -1,0 +1,969 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-23",
+  "nativeEngine": "com.google.mlkit:text-recognition-korean:16.0.1",
+  "device": {
+    "manufacturer": "Google",
+    "model": "sdk_gphone64_x86_64",
+    "apiLevel": 35,
+    "release": "15"
+  },
+  "parser": "app/services/ocr.ts::parseReceiptText",
+  "demoMarkersChecked": [
+    "FL-20260621-1842",
+    "010-4821-7732",
+    "선릉로 757",
+    "더채플앳청담"
+  ],
+  "summary": {
+    "imageCount": 8,
+    "nativeNonEmptyCount": 8,
+    "antiFabricationPassCount": 8,
+    "demoLeakCount": 0,
+    "unsupportedFieldCount": 0,
+    "falseDataRiskCount": 10,
+    "reviewRiskCount": 2
+  },
+  "results": [
+    {
+      "file": "KakaoTalk_20260621_070828835.jpg",
+      "sha256": "f6a8f334b3a62552b6aafae35bda12237a7d720cfdf86fd706b98015e01ac5c0",
+      "image": {
+        "width": 4000,
+        "height": 3000
+      },
+      "native": {
+        "processingMs": 1299,
+        "lineCount": 41,
+        "characterCount": 421,
+        "nonEmpty": true
+      },
+      "parser": {
+        "documentConfidence": 14,
+        "populatedFieldCount": 2,
+        "unsupportedFieldCount": 0,
+        "falseDataRiskCount": 0,
+        "reviewRiskCount": 1,
+        "rawFallbackFieldCount": 1,
+        "unmappedLineCount": 40,
+        "fields": [
+          {
+            "key": "deliveryDate",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "strictTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "eventTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "venueName",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "deliveryAddress",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientName",
+            "value": "신부 선 단비",
+            "confidence": 82,
+            "status": "review",
+            "sourceText": "신부 선 단비",
+            "provenance": "sourceText",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientTel",
+            "value": "070-4741-0001",
+            "confidence": 72,
+            "status": "review",
+            "sourceText": "",
+            "provenance": "rawFallback",
+            "semanticRisks": [
+              {
+                "severity": "review",
+                "reason": "unlabelled phone fallback cannot prove that the number belongs to the recipient"
+              }
+            ]
+          },
+          {
+            "key": "orderNumber",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "memo",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          }
+        ]
+      },
+      "antiFabrication": {
+        "leakedDemoMarkers": [],
+        "passed": true
+      }
+    },
+    {
+      "file": "KakaoTalk_20260621_070828835_01.jpg",
+      "sha256": "3f9a4c2906a9628d857eefde18c220733f679bff5b0c371e749f35b864d94617",
+      "image": {
+        "width": 4000,
+        "height": 3000
+      },
+      "native": {
+        "processingMs": 521,
+        "lineCount": 33,
+        "characterCount": 343,
+        "nonEmpty": true
+      },
+      "parser": {
+        "documentConfidence": 19,
+        "populatedFieldCount": 2,
+        "unsupportedFieldCount": 0,
+        "falseDataRiskCount": 1,
+        "reviewRiskCount": 0,
+        "rawFallbackFieldCount": 0,
+        "unmappedLineCount": 26,
+        "fields": [
+          {
+            "key": "deliveryDate",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "strictTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "eventTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "venueName",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "deliveryAddress",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientName",
+            "value": "99플라워",
+            "confidence": 82,
+            "status": "review",
+            "sourceText": "99플라워",
+            "provenance": "sourceText",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "layout-shift assigned a vendor or form instruction as recipientName"
+              }
+            ]
+          },
+          {
+            "key": "recipientTel",
+            "value": "070-8277-1211",
+            "confidence": 96,
+            "status": "confirmed",
+            "sourceText": "070-8277-1211",
+            "provenance": "sourceText",
+            "semanticRisks": []
+          },
+          {
+            "key": "orderNumber",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "memo",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          }
+        ]
+      },
+      "antiFabrication": {
+        "leakedDemoMarkers": [],
+        "passed": true
+      }
+    },
+    {
+      "file": "KakaoTalk_20260621_070828835_02.jpg",
+      "sha256": "de997ebb1591f894e8dff95e4885f112873275611a0e1bf8e05ac493d5761f0b",
+      "image": {
+        "width": 4000,
+        "height": 3000
+      },
+      "native": {
+        "processingMs": 440,
+        "lineCount": 34,
+        "characterCount": 461,
+        "nonEmpty": true
+      },
+      "parser": {
+        "documentConfidence": 32,
+        "populatedFieldCount": 3,
+        "unsupportedFieldCount": 0,
+        "falseDataRiskCount": 2,
+        "reviewRiskCount": 0,
+        "rawFallbackFieldCount": 1,
+        "unmappedLineCount": 31,
+        "fields": [
+          {
+            "key": "deliveryDate",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "strictTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "eventTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "venueName",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "deliveryAddress",
+            "value": "서울 동작구 중앙대병원 장례식장 5호",
+            "confidence": 88,
+            "status": "confirmed",
+            "sourceText": "서울 동작구 중앙대병원 장례식장 5호",
+            "provenance": "sourceText",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientName",
+            "value": "(분시 이름)",
+            "confidence": 82,
+            "status": "review",
+            "sourceText": "(분시 이름)",
+            "provenance": "sourceText",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "layout-shift assigned a vendor or form instruction as recipientName"
+              }
+            ]
+          },
+          {
+            "key": "recipientTel",
+            "value": "02-606-2606",
+            "confidence": 72,
+            "status": "review",
+            "sourceText": "",
+            "provenance": "rawFallback",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "digits from the order identifier were normalized as recipientTel"
+              }
+            ]
+          },
+          {
+            "key": "orderNumber",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "memo",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          }
+        ]
+      },
+      "antiFabrication": {
+        "leakedDemoMarkers": [],
+        "passed": true
+      }
+    },
+    {
+      "file": "KakaoTalk_20260621_070828835_03.jpg",
+      "sha256": "7acb9bdb1f2e770b6c766ee83b2f18b64dbcf77329b84f5f9ca5452c9fce4872",
+      "image": {
+        "width": 4000,
+        "height": 3000
+      },
+      "native": {
+        "processingMs": 465,
+        "lineCount": 34,
+        "characterCount": 432,
+        "nonEmpty": true
+      },
+      "parser": {
+        "documentConfidence": 32,
+        "populatedFieldCount": 4,
+        "unsupportedFieldCount": 0,
+        "falseDataRiskCount": 3,
+        "reviewRiskCount": 0,
+        "rawFallbackFieldCount": 1,
+        "unmappedLineCount": 29,
+        "fields": [
+          {
+            "key": "deliveryDate",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "strictTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "eventTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "venueName",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "deliveryAddress",
+            "value": "|서울 영등포구 선유로 101 교원예욱 서서울 장례식장 201호",
+            "confidence": 88,
+            "status": "confirmed",
+            "sourceText": "|서울 영등포구 선유로 101 교원예욱 서서울 장례식장 201호",
+            "provenance": "sourceText",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientName",
+            "value": "(반드시 이)",
+            "confidence": 82,
+            "status": "review",
+            "sourceText": "(반드시 이)",
+            "provenance": "sourceText",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "layout-shift assigned a vendor or form instruction as recipientName"
+              }
+            ]
+          },
+          {
+            "key": "recipientTel",
+            "value": "02-606-2606",
+            "confidence": 72,
+            "status": "review",
+            "sourceText": "",
+            "provenance": "rawFallback",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "digits from the order identifier were normalized as recipientTel"
+              }
+            ]
+          },
+          {
+            "key": "orderNumber",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "memo",
+            "value": "경기 용인시-경기용인45호(용인세브란스화원)-010-3348-",
+            "confidence": 86,
+            "status": "confirmed",
+            "sourceText": "경기 용인시-경기용인45호(용인세브란스화원)-010-3348-",
+            "provenance": "sourceText",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "vendor/contact line was assigned as memo"
+              }
+            ]
+          }
+        ]
+      },
+      "antiFabrication": {
+        "leakedDemoMarkers": [],
+        "passed": true
+      }
+    },
+    {
+      "file": "KakaoTalk_20260621_070828835_04.jpg",
+      "sha256": "8d6ba35bb97b418e0556cbb8d8ada6ba3ce10dea00f170133aeb7522e0c7ef78",
+      "image": {
+        "width": 4000,
+        "height": 3000
+      },
+      "native": {
+        "processingMs": 553,
+        "lineCount": 39,
+        "characterCount": 416,
+        "nonEmpty": true
+      },
+      "parser": {
+        "documentConfidence": 14,
+        "populatedFieldCount": 2,
+        "unsupportedFieldCount": 0,
+        "falseDataRiskCount": 0,
+        "reviewRiskCount": 1,
+        "rawFallbackFieldCount": 1,
+        "unmappedLineCount": 38,
+        "fields": [
+          {
+            "key": "deliveryDate",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "strictTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "eventTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "venueName",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "deliveryAddress",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientName",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientTel",
+            "value": "02-363-0582",
+            "confidence": 72,
+            "status": "review",
+            "sourceText": "",
+            "provenance": "rawFallback",
+            "semanticRisks": [
+              {
+                "severity": "review",
+                "reason": "unlabelled phone fallback cannot prove that the number belongs to the recipient"
+              }
+            ]
+          },
+          {
+            "key": "orderNumber",
+            "value": "260614-0371>",
+            "confidence": 93,
+            "status": "confirmed",
+            "sourceText": "260614-0371>",
+            "provenance": "sourceText",
+            "semanticRisks": []
+          },
+          {
+            "key": "memo",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          }
+        ]
+      },
+      "antiFabrication": {
+        "leakedDemoMarkers": [],
+        "passed": true
+      }
+    },
+    {
+      "file": "KakaoTalk_20260621_070828835_05.jpg",
+      "sha256": "ca5029ba62b77cdcd72d655be7f96d13f8752f678b73b24aba65076ee2156d30",
+      "image": {
+        "width": 4000,
+        "height": 3000
+      },
+      "native": {
+        "processingMs": 456,
+        "lineCount": 37,
+        "characterCount": 409,
+        "nonEmpty": true
+      },
+      "parser": {
+        "documentConfidence": 14,
+        "populatedFieldCount": 2,
+        "unsupportedFieldCount": 0,
+        "falseDataRiskCount": 1,
+        "reviewRiskCount": 0,
+        "rawFallbackFieldCount": 1,
+        "unmappedLineCount": 36,
+        "fields": [
+          {
+            "key": "deliveryDate",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "strictTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "eventTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "venueName",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "deliveryAddress",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientName",
+            "value": "고인 구본순",
+            "confidence": 82,
+            "status": "review",
+            "sourceText": "고인 구본순",
+            "provenance": "sourceText",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientTel",
+            "value": "02-606-2606",
+            "confidence": 72,
+            "status": "review",
+            "sourceText": "",
+            "provenance": "rawFallback",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "digits from the order identifier were normalized as recipientTel"
+              }
+            ]
+          },
+          {
+            "key": "orderNumber",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "memo",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          }
+        ]
+      },
+      "antiFabrication": {
+        "leakedDemoMarkers": [],
+        "passed": true
+      }
+    },
+    {
+      "file": "KakaoTalk_20260621_070828835_06.jpg",
+      "sha256": "9316ef3e58604fde7abd1e0feb8565f76e773fa0abf86d6accafb7b1361bf9e5",
+      "image": {
+        "width": 4000,
+        "height": 3000
+      },
+      "native": {
+        "processingMs": 465,
+        "lineCount": 38,
+        "characterCount": 450,
+        "nonEmpty": true
+      },
+      "parser": {
+        "documentConfidence": 14,
+        "populatedFieldCount": 2,
+        "unsupportedFieldCount": 0,
+        "falseDataRiskCount": 1,
+        "reviewRiskCount": 0,
+        "rawFallbackFieldCount": 1,
+        "unmappedLineCount": 37,
+        "fields": [
+          {
+            "key": "deliveryDate",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "strictTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "eventTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "venueName",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "deliveryAddress",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientName",
+            "value": "고인 김기회",
+            "confidence": 82,
+            "status": "review",
+            "sourceText": "고인 김기회",
+            "provenance": "sourceText",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientTel",
+            "value": "02-606-2606",
+            "confidence": 72,
+            "status": "review",
+            "sourceText": "",
+            "provenance": "rawFallback",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "digits from the order identifier were normalized as recipientTel"
+              }
+            ]
+          },
+          {
+            "key": "orderNumber",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "memo",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          }
+        ]
+      },
+      "antiFabrication": {
+        "leakedDemoMarkers": [],
+        "passed": true
+      }
+    },
+    {
+      "file": "KakaoTalk_20260621_070828835_07.jpg",
+      "sha256": "6eb8012c226ccfc70cac39dc863ba94e9836fcf8383a68f8798641d9cd553533",
+      "image": {
+        "width": 4000,
+        "height": 3000
+      },
+      "native": {
+        "processingMs": 401,
+        "lineCount": 37,
+        "characterCount": 396,
+        "nonEmpty": true
+      },
+      "parser": {
+        "documentConfidence": 19,
+        "populatedFieldCount": 2,
+        "unsupportedFieldCount": 0,
+        "falseDataRiskCount": 2,
+        "reviewRiskCount": 0,
+        "rawFallbackFieldCount": 0,
+        "unmappedLineCount": 31,
+        "fields": [
+          {
+            "key": "deliveryDate",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "strictTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "eventTime",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "venueName",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "deliveryAddress",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "recipientName",
+            "value": "99플라워",
+            "confidence": 82,
+            "status": "review",
+            "sourceText": "99플라워",
+            "provenance": "sourceText",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "layout-shift assigned a vendor or form instruction as recipientName"
+              }
+            ]
+          },
+          {
+            "key": "recipientTel",
+            "value": "06월 14일(일) 당일배송 17:00~19 :00 ( 시간엄수 7시",
+            "confidence": 96,
+            "status": "confirmed",
+            "sourceText": "06월 14일(일) 당일배송 17:00~19 :00 ( 시간엄수 7시",
+            "provenance": "sourceText",
+            "semanticRisks": [
+              {
+                "severity": "false-data",
+                "reason": "recipientTel is populated with a non-phone value"
+              }
+            ]
+          },
+          {
+            "key": "orderNumber",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          },
+          {
+            "key": "memo",
+            "value": "",
+            "confidence": 0,
+            "status": "missing",
+            "sourceText": "",
+            "provenance": "missing",
+            "semanticRisks": []
+          }
+        ]
+      },
+      "antiFabrication": {
+        "leakedDemoMarkers": [],
+        "passed": true
+      }
+    }
+  ]
+}
