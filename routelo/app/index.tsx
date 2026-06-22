@@ -27,7 +27,12 @@ import {
 import { SAMPLE_DELIVERIES } from './data';
 import { Delivery, OcrFieldKey, OcrFieldResult, OcrPipelineResult } from './models';
 import { optimizeByNearestNeighbor } from './services/maps';
-import { inspectCaptureQuality, runHybridOcr } from './services/ocr';
+import {
+  DEMO_RECEIPT_TEXT,
+  inspectCaptureQuality,
+  OcrRecognizerUnavailableError,
+  runHybridOcr,
+} from './services/ocr';
 
 type TabKey = 'home' | 'deliveries' | 'route' | 'notifications' | 'settings';
 type DeliveryFilter = 'all' | 'pending' | 'completed';
@@ -1027,6 +1032,7 @@ function OcrScannerModal({
   const [assetInfo, setAssetInfo] = useState<{ width?: number; height?: number; fileSize?: number }>({});
   const [result, setResult] = useState<OcrPipelineResult>();
   const [fields, setFields] = useState<OcrFieldResult[]>([]);
+  const [demoMode, setDemoMode] = useState(false);
 
   const reset = () => {
     setStage('capture');
@@ -1034,6 +1040,7 @@ function OcrScannerModal({
     setAssetInfo({});
     setResult(undefined);
     setFields([]);
+    setDemoMode(false);
   };
 
   useEffect(() => {
@@ -1064,6 +1071,7 @@ function OcrScannerModal({
     const info = { width: asset.width, height: asset.height, fileSize: asset.fileSize };
     setImageUri(asset.uri);
     setAssetInfo(info);
+    setDemoMode(false);
     setResult({
       engine: 'mlkit-demo',
       rawText: '',
@@ -1080,6 +1088,8 @@ function OcrScannerModal({
   const useDemoReceipt = () => {
     const info = { width: 1440, height: 1920, fileSize: 780000 };
     setAssetInfo(info);
+    setImageUri(undefined);
+    setDemoMode(true);
     setResult({
       engine: 'mlkit-demo',
       rawText: '',
@@ -1099,10 +1109,25 @@ function OcrScannerModal({
       return;
     }
     setStage('processing');
-    const next = await runHybridOcr(assetInfo);
-    setResult(next);
-    setFields(next.fields);
-    setStage('review');
+    try {
+      const next = await runHybridOcr(
+        { ...assetInfo, uri: imageUri },
+        demoMode ? DEMO_RECEIPT_TEXT : undefined,
+      );
+      setResult(next);
+      setFields(next.fields);
+      setStage('review');
+    } catch (error) {
+      setResult(undefined);
+      setFields([]);
+      setStage('quality');
+      Alert.alert(
+        'OCR 인식 준비 중',
+        error instanceof OcrRecognizerUnavailableError
+          ? error.message
+          : '인수증을 분석하지 못했습니다. 다시 촬영해 주세요.',
+      );
+    }
   };
 
   const updateField = (key: OcrFieldKey, value: string) => {
@@ -1118,6 +1143,13 @@ function OcrScannerModal({
   const valueOf = (key: OcrFieldKey) => fields.find((item) => item.key === key)?.value || '';
 
   const register = () => {
+    if (!result?.rawText.trim() || fields.length === 0) {
+      Alert.alert(
+        '등록할 수 없음',
+        '실제 인수증에서 인식되고 검수된 정보가 없습니다. 거짓 정보 생성을 막기 위해 등록을 중단했습니다.',
+      );
+      return;
+    }
     const missing = fields.filter((field) => field.required && !field.value.trim());
     if (missing.length) {
       Alert.alert(

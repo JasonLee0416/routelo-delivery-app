@@ -3,10 +3,18 @@ import { DEFAULT_FIELD_REGISTRY } from '../ocr/fieldRegistry';
 import { normalizeReceipt } from '../ocr/normalize';
 
 type ImageAssetInfo = {
+  uri?: string;
   width?: number;
   height?: number;
   fileSize?: number;
 };
+
+export class OcrRecognizerUnavailableError extends Error {
+  constructor() {
+    super('실제 OCR 인식 엔진이 아직 연결되지 않았습니다. 촬영한 사진에서 임의의 정보를 생성하지 않습니다.');
+    this.name = 'OcrRecognizerUnavailableError';
+  }
+}
 
 const LABELS: Record<OcrFieldKey, string> = {
   deliveryDate: '배송 날짜',
@@ -214,9 +222,12 @@ export function parseReceiptText(rawText: string, quality: CaptureQuality): OcrP
 
 export async function runHybridOcr(
   asset: ImageAssetInfo,
-  rawText = DEMO_RECEIPT_TEXT,
+  rawText?: string,
 ): Promise<OcrPipelineResult> {
   const quality = inspectCaptureQuality(asset);
+  if (!rawText?.trim()) {
+    throw new OcrRecognizerUnavailableError();
+  }
   await new Promise((resolve) => setTimeout(resolve, 900));
   return parseReceiptText(rawText, quality);
 }
