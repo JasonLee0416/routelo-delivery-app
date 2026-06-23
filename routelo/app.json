@@ -7,9 +7,16 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jasonlee0312.routelo",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "배송 영수증을 촬영하고 주문 정보를 인식하기 위해 카메라를 사용합니다.",
+        "NSPhotoLibraryUsageDescription": "저장된 배송 영수증을 선택하고 주문 정보를 인식하기 위해 사진 보관함을 사용합니다."
+      }
     },
     "android": {
+      "package": "com.jasonlee0312.routelo",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
