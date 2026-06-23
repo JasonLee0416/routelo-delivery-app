@@ -46,6 +46,7 @@ import {
   findDistrictByAddress,
   optimizeByNearestNeighbor,
 } from './services/maps';
+import { summarizeDailyProfit } from './services/profit';
 import { DEFAULT_FEE_SETTINGS, GYEONGGI_DISTRICTS, SEOUL_DISTRICTS } from './settings/districts';
 import { settingsRepository } from './settings/native';
 import {
@@ -788,43 +789,10 @@ function CalendarScreen({
   }, [items]);
   const selectedDate = formatDateKey(cursor);
   const selectedItems = byDate.get(selectedDate) || [];
-  const dailySummaries = useMemo(() => {
-    const grouped = new Map<
-      string,
-      { revenue: number; fuelCost: number; net: number; count: number }
-    >();
-    orders.forEach((order) => {
-      const date = order.schedule.serviceDate;
-      if (!date) return;
-      const address = order.destination.address || '';
-      const configuredFee = calculateFeeByAddress(address, settings);
-      const savedFee = order.settlement.fee || 0;
-      const fee = savedFee > 0 ? savedFee : configuredFee;
-      const current = grouped.get(date) || {
-        revenue: 0,
-        fuelCost: 0,
-        net: 0,
-        count: 0,
-      };
-      current.revenue += fee;
-      current.count += 1;
-      grouped.set(date, current);
-    });
-    fuelLogs.forEach((log) => {
-      const current = grouped.get(log.date) || {
-        revenue: 0,
-        fuelCost: 0,
-        net: 0,
-        count: 0,
-      };
-      current.fuelCost += log.amount;
-      grouped.set(log.date, current);
-    });
-    grouped.forEach((summary) => {
-      summary.net = summary.revenue - summary.fuelCost;
-    });
-    return grouped;
-  }, [fuelLogs, orders, settings]);
+  const dailySummaries = useMemo(
+    () => summarizeDailyProfit(orders, fuelLogs, settings),
+    [fuelLogs, orders, settings],
+  );
   const selectedSummary = dailySummaries.get(selectedDate) || {
     revenue: 0,
     fuelCost: 0,
