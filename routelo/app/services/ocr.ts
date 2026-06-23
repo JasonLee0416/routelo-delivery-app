@@ -699,12 +699,35 @@ export async function runHybridOcr(
     const recognized = await recognize(asset.uri);
     if (!recognized.fullText.trim()) throw new OcrNoTextDetectedError();
     const parsed = parseReceiptText(recognized.fullText, quality);
-    return {
+    const mlkitResult: OcrPipelineResult = {
       ...parsed,
       engine: 'mlkit',
       recognizedLines: recognized.lines,
       processingMs: recognized.processingMs,
     };
+    if (mlkitResult.documentConfidence >= 78) return mlkitResult;
+
+    try {
+      const { recognizeReceiptWithPpOcr } = await import('./ppocr');
+      const ppOcr = await recognizeReceiptWithPpOcr(asset.uri);
+      if (!ppOcr.fullText.trim()) return mlkitResult;
+      const ppParsed = parseReceiptText(ppOcr.fullText, quality);
+      const ppResult: OcrPipelineResult = {
+        ...ppParsed,
+        engine:
+          ppParsed.documentConfidence > mlkitResult.documentConfidence
+            ? 'mlkit+ppocrv5'
+            : 'ppocrv5',
+        recognizedLines: ppOcr.lines,
+        processingMs: recognized.processingMs + ppOcr.processingMs,
+        variantsCompared: 2,
+      };
+      return ppResult.documentConfidence >= mlkitResult.documentConfidence + 8
+        ? ppResult
+        : mlkitResult;
+    } catch {
+      return mlkitResult;
+    }
   } catch (error) {
     if (error instanceof OcrNoTextDetectedError) throw error;
     throw new OcrRecognizerUnavailableError(
