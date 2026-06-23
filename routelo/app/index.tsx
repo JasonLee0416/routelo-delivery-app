@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
@@ -25,7 +24,16 @@ import {
 } from 'react-native-safe-area-context';
 
 import { SAMPLE_DELIVERIES } from './data';
+import { AccountState, EnergyType } from './account';
+import { accountRepository } from './account/native';
+import {
+  DeliveryOrder,
+  legacyDeliveryToOrder,
+  orderToLegacyDelivery,
+  toCalendarDeliveryItem,
+} from './domain';
 import { Delivery, OcrFieldKey, OcrFieldResult, OcrPipelineResult } from './models';
+import { deliveryRepository } from './repositories/native';
 import { optimizeByNearestNeighbor } from './services/maps';
 import {
   DEMO_RECEIPT_TEXT,
@@ -34,11 +42,19 @@ import {
   OcrRecognizerUnavailableError,
   runHybridOcr,
 } from './services/ocr';
+import {
+  probePpOcrRuntime,
+  recognizeReceiptWithPpOcr,
+} from './services/ppocr';
 
-type TabKey = 'home' | 'deliveries' | 'route' | 'notifications' | 'settings';
+type TabKey =
+  | 'home'
+  | 'deliveries'
+  | 'calendar'
+  | 'route'
+  | 'notifications'
+  | 'settings';
 type DeliveryFilter = 'all' | 'pending' | 'completed';
-
-const STORAGE_KEY = '@routelo/md3-state/v1';
 
 const C = {
   primary: '#2457C5',
@@ -67,6 +83,12 @@ const tabs: Array<{
 }> = [
   { key: 'home', label: '홈', icon: 'grid-outline', activeIcon: 'grid' },
   { key: 'deliveries', label: '배달', icon: 'cube-outline', activeIcon: 'cube' },
+  {
+    key: 'calendar',
+    label: '일정',
+    icon: 'calendar-outline',
+    activeIcon: 'calendar',
+  },
   { key: 'route', label: '동선', icon: 'map-outline', activeIcon: 'map' },
   {
     key: 'notifications',
@@ -689,6 +711,246 @@ function RouteScreen({
   );
 }
 
+type CalendarMode = 'month' | 'week' | 'day';
+
+const formatDateKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const timeLabel = (value?: string) =>
+  value?.match(/T(\d{2}:\d{2})/)?.[1] || '';
+
+function CalendarScreen({
+  orders,
+  onDeliveryPress,
+  onNotifications,
+}: {
+  orders: DeliveryOrder[];
+  onDeliveryPress: (delivery: Delivery) => void;
+  onNotifications: () => void;
+}) {
+  const today = new Date();
+  const [mode, setMode] = useState<CalendarMode>('month');
+  const [cursor, setCursor] = useState(
+    new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+  );
+  const items = useMemo(
+    () =>
+      orders
+        .map((order) => toCalendarDeliveryItem(order))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+    [orders],
+  );
+  const byDate = useMemo(() => {
+    const grouped = new Map<string, typeof items>();
+    items.forEach((item) => {
+      grouped.set(item.date, [...(grouped.get(item.date) || []), item]);
+    });
+    grouped.forEach((value) =>
+      value.sort((left, right) =>
+        (
+          left.deadlineAt ||
+          left.startAt ||
+          left.eventAt ||
+          `${left.date}T23:59`
+        ).localeCompare(
+          right.deadlineAt ||
+            right.startAt ||
+            right.eventAt ||
+            `${right.date}T23:59`,
+        ),
+      ),
+    );
+    return grouped;
+  }, [items]);
+  const selectedDate = formatDateKey(cursor);
+  const selectedItems = byDate.get(selectedDate) || [];
+  const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const monthGridStart = new Date(monthStart);
+  monthGridStart.setDate(1 - monthStart.getDay());
+  const monthDays = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(monthGridStart);
+    date.setDate(monthGridStart.getDate() + index);
+    return date;
+  });
+  const weekStart = new Date(cursor);
+  weekStart.setDate(cursor.getDate() - cursor.getDay());
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    return date;
+  });
+  const visibleDays =
+    mode === 'month' ? monthDays : mode === 'week' ? weekDays : [cursor];
+
+  const move = (direction: number) => {
+    const next = new Date(cursor);
+    if (mode === 'month') next.setMonth(cursor.getMonth() + direction, 1);
+    else next.setDate(cursor.getDate() + direction * (mode === 'week' ? 7 : 1));
+    setCursor(next);
+  };
+
+  return (
+    <ScrollView style={styles.flex} contentContainerStyle={styles.screenContent}>
+      <ScreenHeader
+        eyebrow="DELIVERY CALENDAR"
+        title="배달 일정"
+        subtitle="마감·예식·동선 시간을 분리해 확인합니다"
+        notificationCount={3}
+        onNotificationPress={onNotifications}
+      />
+      <View style={styles.calendarModeRow}>
+        {(['month', 'week', 'day'] as CalendarMode[]).map((item) => (
+          <Pressable
+            key={item}
+            style={[
+              styles.calendarModeButton,
+              mode === item && styles.calendarModeButtonActive,
+            ]}
+            onPress={() => setMode(item)}
+          >
+            <Text
+              style={[
+                styles.calendarModeText,
+                mode === item && styles.calendarModeTextActive,
+              ]}
+            >
+              {item === 'month' ? '월' : item === 'week' ? '주' : '일'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.calendarCard}>
+        <View style={styles.calendarToolbar}>
+          <Pressable style={styles.iconButton} onPress={() => move(-1)}>
+            <Ionicons name="chevron-back" size={20} color={C.navy} />
+          </Pressable>
+          <Text style={styles.calendarTitle}>
+            {cursor.getFullYear()}년 {cursor.getMonth() + 1}월
+          </Text>
+          <Pressable style={styles.iconButton} onPress={() => move(1)}>
+            <Ionicons name="chevron-forward" size={20} color={C.navy} />
+          </Pressable>
+        </View>
+        <View style={styles.calendarWeekHeader}>
+          {['일', '월', '화', '수', '목', '금', '토'].map((day) => (
+            <Text key={day} style={styles.calendarWeekLabel}>
+              {day}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.calendarGrid}>
+          {visibleDays.map((date) => {
+            const key = formatDateKey(date);
+            const count = byDate.get(key)?.length || 0;
+            const selected = key === selectedDate;
+            const outside =
+              mode === 'month' && date.getMonth() !== cursor.getMonth();
+            const urgent = (byDate.get(key) || []).some(
+              (item) => item.priority !== 'normal',
+            );
+            return (
+              <Pressable
+                key={key}
+                style={[
+                  styles.calendarDay,
+                  mode !== 'month' && styles.calendarDayWide,
+                  selected && styles.calendarDaySelected,
+                ]}
+                onPress={() => setCursor(date)}
+              >
+                <Text
+                  style={[
+                    styles.calendarDayText,
+                    outside && styles.calendarDayOutside,
+                    selected && styles.calendarDayTextSelected,
+                  ]}
+                >
+                  {date.getDate()}
+                </Text>
+                {count > 0 && (
+                  <View
+                    style={[
+                      styles.calendarCount,
+                      urgent && styles.calendarCountUrgent,
+                    ]}
+                  >
+                    <Text style={styles.calendarCountText}>{count}</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      <SectionHeader
+        title={`${selectedDate} 일정`}
+        caption={`${selectedItems.length}건`}
+      />
+      {selectedItems.length === 0 ? (
+        <View style={styles.calendarEmpty}>
+          <Ionicons name="calendar-clear-outline" size={30} color={C.textMuted} />
+          <Text style={styles.calendarEmptyTitle}>등록된 배달이 없습니다</Text>
+          <Text style={styles.calendarEmptyText}>
+            날짜만 인식된 OCR 일정도 이곳에 안전하게 표시됩니다.
+          </Text>
+        </View>
+      ) : (
+        selectedItems.map((item) => {
+          const order = orders.find(
+            (entry) => entry.id === item.deliveryOrderId,
+          );
+          const delivery = order ? orderToLegacyDelivery(order) : undefined;
+          const primaryTime =
+            timeLabel(item.deadlineAt) ||
+            timeLabel(item.startAt) ||
+            timeLabel(item.eventAt);
+          return (
+            <Pressable
+              key={item.id}
+              style={styles.calendarAgendaCard}
+              onPress={() => delivery && onDeliveryPress(delivery)}
+            >
+              <View style={styles.calendarTimeColumn}>
+                <Text
+                  style={[
+                    styles.calendarAgendaTime,
+                    item.priority !== 'normal' && { color: C.danger },
+                  ]}
+                >
+                  {primaryTime || '시간 미정'}
+                </Text>
+                <Text style={styles.calendarPrecision}>
+                  {item.timePrecision === 'date-only'
+                    ? '날짜만 확인'
+                    : item.timePrecision === 'approximate'
+                      ? '대략 시간'
+                      : '확정 일정'}
+                </Text>
+              </View>
+              <View style={styles.calendarAgendaBody}>
+                <Text style={styles.calendarAgendaTitle}>{item.title}</Text>
+                <Text style={styles.calendarAgendaAddress}>{item.address}</Text>
+                <View style={styles.calendarMetaRow}>
+                  {!!item.deadlineAt && (
+                    <Text style={styles.calendarUrgentText}>
+                      엄수 {timeLabel(item.deadlineAt)}
+                    </Text>
+                  )}
+                  {!!item.eventAt && (
+                    <Text style={styles.calendarEventText}>
+                      행사 {timeLabel(item.eventAt)}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </Pressable>
+          );
+        })
+      )}
+    </ScrollView>
+  );
+}
+
 type NotificationTone = 'danger' | 'warning' | 'info';
 
 function NotificationCard({
@@ -809,11 +1071,47 @@ function SettingRow({
   );
 }
 
-function SettingsScreen() {
+function SettingsScreen({
+  account,
+  onEditAccount,
+}: {
+  account?: AccountState;
+  onEditAccount: () => void;
+}) {
   const [deadlineAlerts, setDeadlineAlerts] = useState(true);
   const [eventAlerts, setEventAlerts] = useState(true);
   const [routeAlerts, setRouteAlerts] = useState(true);
   const [avoidTolls, setAvoidTolls] = useState(false);
+  const [ppOcrStatus, setPpOcrStatus] = useState('실행 전');
+
+  const runPpOcrProbe = async () => {
+    setPpOcrStatus('모델 확인 중');
+    const result = await probePpOcrRuntime();
+    if (result.error) {
+      setPpOcrStatus(result.error);
+      Alert.alert('PP-OCR 진단', result.error);
+      return;
+    }
+    const message = `Detector ${result.detector?.inputs[0]?.shape.join('×') || '-'} · Recognizer ${result.recognizer?.inputs[0]?.shape.join('×') || '-'} · smoke ${result.smoke?.processingMs.toFixed(1)}ms`;
+    setPpOcrStatus(message);
+    Alert.alert('PP-OCR 런타임 정상', message);
+  };
+
+  const runPpOcrFixture = async () => {
+    setPpOcrStatus('시험 이미지 인식 중');
+    try {
+      const result = await recognizeReceiptWithPpOcr(
+        'file:///data/user/0/com.jasonlee0312.routelo/files/KakaoTalk_20260621_070828835_01.jpg',
+      );
+      const message = `${result.lines.length}줄 · ${result.processingMs.toFixed(0)}ms · ${result.fullText.slice(0, 80) || '텍스트 없음'}`;
+      setPpOcrStatus(message);
+      Alert.alert('PP-OCR 시험 결과', message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setPpOcrStatus(message);
+      Alert.alert('PP-OCR 시험 실패', message);
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
@@ -827,10 +1125,16 @@ function SettingsScreen() {
           <Ionicons name="person" size={27} color={C.primary} />
         </View>
         <View style={styles.flex}>
-          <Text style={styles.profileName}>업무 기사 프로필</Text>
-          <Text style={styles.profileCaption}>현대 포터2 · 업무 차량 등록됨</Text>
+          <Text style={styles.profileName}>
+            {account?.profile.displayName || '업무 기사 프로필'}
+          </Text>
+          <Text style={styles.profileCaption}>
+            {account?.profile.accountMode === 'guest'
+              ? '게스트 모드 · 로컬 저장'
+              : `${account?.vehicles[0]?.model || '차량 미등록'} · 회원 모드`}
+          </Text>
         </View>
-        <Pressable style={styles.iconButton}>
+        <Pressable style={styles.iconButton} onPress={onEditAccount}>
           <Ionicons name="pencil-outline" size={19} color={C.primary} />
         </Pressable>
       </View>
@@ -881,7 +1185,287 @@ function SettingsScreen() {
         <View style={styles.divider} />
         <SettingRow icon="information-circle-outline" title="앱 정보" caption="RouteLO 1.0.0" />
       </View>
+      <SectionHeader title="OCR 실험실" />
+      <View style={styles.settingsGroup}>
+        <SettingRow
+          icon="hardware-chip-outline"
+          title="PP-OCRv5 런타임 진단"
+          caption={ppOcrStatus}
+          onPress={runPpOcrProbe}
+        />
+        {__DEV__ && (
+          <>
+            <View style={styles.divider} />
+            <SettingRow
+              icon="document-text-outline"
+              title="저장소 시험 이미지 인식"
+              caption="개발용 고정 파일 경로에서 PP-OCR 실행"
+              onPress={runPpOcrFixture}
+            />
+          </>
+        )}
+      </View>
     </ScrollView>
+  );
+}
+
+function OnboardingModal({
+  visible,
+  initial,
+  onComplete,
+}: {
+  visible: boolean;
+  initial?: AccountState;
+  onComplete: (state: AccountState) => void;
+}) {
+  const [mode, setMode] = useState<'choice' | 'member'>(
+    initial?.profile.accountMode === 'member' ? 'member' : 'choice',
+  );
+  const [displayName, setDisplayName] = useState(
+    initial?.profile.displayName || '',
+  );
+  const [email, setEmail] = useState(initial?.profile.email || '');
+  const [password, setPassword] = useState('');
+  const [vehicleModel, setVehicleModel] = useState(
+    initial?.vehicles[0]?.model || '',
+  );
+  const [energyType, setEnergyType] = useState<EnergyType>(
+    initial?.vehicles[0]?.energyType || 'diesel',
+  );
+  const [capacity, setCapacity] = useState(
+    String(
+      initial?.vehicles[0]?.tankCapacityLiters ||
+        initial?.vehicles[0]?.batteryCapacityKwh ||
+        '',
+    ),
+  );
+
+  useEffect(() => {
+    if (!visible) return;
+    setMode(initial?.profile.accountMode === 'member' ? 'member' : 'choice');
+    setDisplayName(initial?.profile.displayName || '');
+    setEmail(initial?.profile.email || '');
+    setPassword('');
+    setVehicleModel(initial?.vehicles[0]?.model || '');
+    setEnergyType(initial?.vehicles[0]?.energyType || 'diesel');
+    setCapacity(
+      String(
+        initial?.vehicles[0]?.tankCapacityLiters ||
+          initial?.vehicles[0]?.batteryCapacityKwh ||
+          '',
+      ),
+    );
+  }, [initial, visible]);
+
+  const saveGuest = () => {
+    const now = new Date().toISOString();
+    onComplete({
+      profile: {
+        schemaVersion: 1,
+        id: initial?.profile.id || `guest-${Date.now()}`,
+        accountMode: 'guest',
+        plan: 'guest',
+        status: 'active',
+        displayName: displayName.trim() || '게스트 기사',
+        createdAt: initial?.profile.createdAt || now,
+        updatedAt: now,
+      },
+      vehicles: initial?.vehicles || [],
+    });
+  };
+
+  const saveMember = () => {
+    if (!displayName.trim() || !email.includes('@')) {
+      Alert.alert('가입 정보 확인', '이름과 올바른 이메일을 입력해주세요.');
+      return;
+    }
+    if (!initial && password.length < 8) {
+      Alert.alert('비밀번호 확인', '비밀번호는 8자 이상 입력해주세요.');
+      return;
+    }
+    if (!vehicleModel.trim()) {
+      Alert.alert('차량 정보 확인', '업무 차량의 차종을 입력해주세요.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const userId = initial?.profile.id || `member-${Date.now()}`;
+    const numericCapacity = Number(capacity);
+    const vehicleId = initial?.vehicles[0]?.id || `vehicle-${Date.now()}`;
+    const state: AccountState = {
+      profile: {
+        schemaVersion: 1,
+        id: userId,
+        accountMode: 'member',
+        plan: initial?.profile.plan === 'premium' ? 'premium' : 'free',
+        status: 'active',
+        displayName: displayName.trim(),
+        email: email.trim(),
+        primaryVehicleId: vehicleId,
+        createdAt: initial?.profile.createdAt || now,
+        updatedAt: now,
+      },
+      vehicles: [
+        {
+          schemaVersion: 1,
+          id: vehicleId,
+          userId,
+          nickname: '업무 차량',
+          model: vehicleModel.trim(),
+          vehicleType: 'truck',
+          energyType,
+          tankCapacityLiters:
+            energyType !== 'electric' && numericCapacity > 0
+              ? numericCapacity
+              : undefined,
+          batteryCapacityKwh:
+            energyType === 'electric' && numericCapacity > 0
+              ? numericCapacity
+              : undefined,
+          isPrimary: true,
+        },
+      ],
+    };
+    setPassword('');
+    onComplete(state);
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide">
+      <SafeAreaView style={styles.onboardingApp}>
+        <ScrollView contentContainerStyle={styles.onboardingContent}>
+          <View style={styles.onboardingBrand}>
+            <View style={styles.onboardingLogo}>
+              <Ionicons name="navigate" size={30} color="#FFFFFF" />
+            </View>
+            <Text style={styles.onboardingTitle}>RouteLO 시작하기</Text>
+            <Text style={styles.onboardingSubtitle}>
+              기사님의 배달 기록과 수익 분석 방식을 선택해주세요.
+            </Text>
+          </View>
+          {mode === 'choice' ? (
+            <>
+              <Pressable style={styles.onboardingChoice} onPress={saveGuest}>
+                <Ionicons name="phone-portrait-outline" size={25} color={C.primary} />
+                <View style={styles.flex}>
+                  <Text style={styles.onboardingChoiceTitle}>비회원으로 시작</Text>
+                  <Text style={styles.onboardingChoiceText}>
+                    가입 없이 기기 내부에 배달·주유 기록을 저장합니다.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
+              </Pressable>
+              <Pressable
+                style={styles.onboardingChoice}
+                onPress={() => setMode('member')}
+              >
+                <Ionicons name="person-circle-outline" size={27} color={C.primary} />
+                <View style={styles.flex}>
+                  <Text style={styles.onboardingChoiceTitle}>회원으로 시작</Text>
+                  <Text style={styles.onboardingChoiceText}>
+                    프로필과 업무 차량을 등록하고 계정 기반 기능을 준비합니다.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
+              </Pressable>
+            </>
+          ) : (
+            <View style={styles.onboardingForm}>
+              <Text style={styles.onboardingSectionTitle}>회원 프로필</Text>
+              <TextInput
+                style={styles.onboardingInput}
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder="기사님 이름 또는 닉네임"
+              />
+              <TextInput
+                style={styles.onboardingInput}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                placeholder="이메일"
+              />
+              {!initial && (
+                <TextInput
+                  style={styles.onboardingInput}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  placeholder="비밀번호 8자 이상"
+                />
+              )}
+              <Text style={styles.onboardingSectionTitle}>업무 차량</Text>
+              <TextInput
+                style={styles.onboardingInput}
+                value={vehicleModel}
+                onChangeText={setVehicleModel}
+                placeholder="차종 예: 현대 포터2"
+              />
+              <View style={styles.energyRow}>
+                {(['gasoline', 'diesel', 'lpg', 'hybrid', 'electric'] as EnergyType[]).map(
+                  (fuel) => (
+                    <Pressable
+                      key={fuel}
+                      style={[
+                        styles.energyChip,
+                        energyType === fuel && styles.energyChipActive,
+                      ]}
+                      onPress={() => setEnergyType(fuel)}
+                    >
+                      <Text
+                        style={[
+                          styles.energyChipText,
+                          energyType === fuel && styles.energyChipTextActive,
+                        ]}
+                      >
+                        {fuel === 'gasoline'
+                          ? '휘발유'
+                          : fuel === 'diesel'
+                            ? '경유'
+                            : fuel === 'lpg'
+                              ? 'LPG'
+                              : fuel === 'hybrid'
+                                ? '하이브리드'
+                                : '전기'}
+                      </Text>
+                    </Pressable>
+                  ),
+                )}
+              </View>
+              <TextInput
+                style={styles.onboardingInput}
+                value={capacity}
+                onChangeText={setCapacity}
+                keyboardType="decimal-pad"
+                placeholder={
+                  energyType === 'electric'
+                    ? '배터리 용량(kWh)'
+                    : '연료탱크 용량(L)'
+                }
+              />
+              <Text style={styles.onboardingPrivacy}>
+                이 정보는 기사님의 배송 수익과 차량 운영비를 더 정확하게 분석하기
+                위해 사용됩니다. 필요한 정보만 기기에 저장하며 비밀번호는 이
+                프로필에 저장하지 않습니다.
+              </Text>
+              <Pressable style={styles.scanPrimaryButton} onPress={saveMember}>
+                <Text style={styles.scanPrimaryButtonText}>
+                  {initial ? '프로필 저장' : '회원 정보 설정 완료'}
+                </Text>
+              </Pressable>
+              {!initial && (
+                <Pressable
+                  style={styles.scanSecondaryButton}
+                  onPress={() => setMode('choice')}
+                >
+                  <Text style={styles.scanSecondaryButtonText}>이전으로</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
   );
 }
 
@@ -967,14 +1551,23 @@ function DeliveryDetailSheet({
 type ScanStage = 'capture' | 'quality' | 'processing' | 'review';
 
 const OCR_FIELD_ICONS: Record<OcrFieldKey, keyof typeof Ionicons.glyphMap> = {
+  orderNumber: 'barcode-outline',
+  orderingVendorName: 'storefront-outline',
+  orderingVendorTel: 'call-outline',
+  fulfillingVendorName: 'business-outline',
+  fulfillingVendorTel: 'call-outline',
+  productName: 'flower-outline',
+  productQuantity: 'layers-outline',
+  ribbonText: 'ribbon-outline',
   deliveryDate: 'calendar-outline',
+  deliveryWindowStart: 'play-circle-outline',
+  deliveryWindowEnd: 'stop-circle-outline',
   strictTime: 'alarm-outline',
   eventTime: 'time-outline',
   venueName: 'business-outline',
   deliveryAddress: 'location-outline',
   recipientName: 'person-outline',
   recipientTel: 'call-outline',
-  orderNumber: 'barcode-outline',
   memo: 'document-text-outline',
 };
 
@@ -1135,7 +1728,15 @@ function OcrScannerModal({
     setFields((current) =>
       current.map((item) =>
         item.key === key
-          ? { ...item, value, confidence: value ? Math.max(item.confidence, 85) : 0, status: value ? 'confirmed' : 'missing' }
+          ? {
+              ...item,
+              value,
+              rawValue: item.rawValue || item.value,
+              confidence: value ? Math.max(item.confidence, 85) : 0,
+              status: value ? 'confirmed' : 'missing',
+              extractionMethod: 'manual',
+              validationErrors: [],
+            }
           : item,
       ),
     );
@@ -1161,26 +1762,27 @@ function OcrScannerModal({
     }
     const strictTime = valueOf('strictTime');
     const eventTime = valueOf('eventTime');
-    const venue = valueOf('venueName');
     const address = valueOf('deliveryAddress');
+    const quantity = Number(valueOf('productQuantity'));
     const delivery: Delivery = {
       id: `delivery-${Date.now()}`,
-      orderVendor: venue,
-      orderVendorTel: '',
-      deliveryVendor: '로즈플라워',
-      deliveryVendorTel: '02-2038-1188',
-      productName: eventTime ? '축하 화환' : '배송 상품',
-      productQuantity: 1,
+      orderVendor: valueOf('orderingVendorName'),
+      orderVendorTel: valueOf('orderingVendorTel'),
+      deliveryVendor: valueOf('fulfillingVendorName'),
+      deliveryVendorTel: valueOf('fulfillingVendorTel'),
+      productName: valueOf('productName'),
+      productQuantity:
+        Number.isInteger(quantity) && quantity > 0 ? quantity : 0,
       eventTime,
-      deliveryDt: `${valueOf('deliveryDate')} ${strictTime}`,
+      deliveryDt: [valueOf('deliveryDate'), strictTime].filter(Boolean).join(' '),
       deliveryAddress: address,
       customerRequests: valueOf('memo'),
       recipientTel: valueOf('recipientTel'),
       status: 'pending',
-      distanceKm: 5 + ((address.length * 3) % 80) / 10,
-      fee: 15000,
-      latitude: 37.49 + (address.length % 30) / 1000,
-      longitude: 127.02 + (address.length % 50) / 1000,
+      distanceKm: 0,
+      fee: 0,
+      latitude: 0,
+      longitude: 0,
     };
     onRegister(delivery);
     Alert.alert('등록 완료', '검수된 OCR 정보가 오늘의 배달 목록에 추가되었습니다.');
@@ -1453,38 +2055,60 @@ function OcrScannerModal({
 export default function RouteloApp() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('home');
-  const [deliveries, setDeliveries] = useState<Delivery[]>(SAMPLE_DELIVERIES);
+  const [orders, setOrders] = useState<DeliveryOrder[]>(() =>
+    SAMPLE_DELIVERIES.map((delivery) => legacyDeliveryToOrder(delivery)),
+  );
+  const deliveries = useMemo(
+    () => orders.map(orderToLegacyDelivery),
+    [orders],
+  );
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery>();
   const [scannerVisible, setScannerVisible] = useState(false);
+  const [account, setAccount] = useState<AccountState>();
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((value) => {
-        if (!value) return;
-        const parsed = JSON.parse(value);
-        if (parsed.deliveries) setDeliveries(parsed.deliveries);
+    deliveryRepository
+      .initialize()
+      .then(async () => {
+        const stored = await deliveryRepository.list();
+        if (stored.length) setOrders(stored);
       })
       .catch(() => undefined);
   }, []);
 
   useEffect(() => {
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ deliveries })).catch(() => undefined);
-  }, [deliveries]);
+    accountRepository
+      .get()
+      .then((stored) => {
+        if (stored) setAccount(stored);
+        else setOnboardingVisible(true);
+      })
+      .catch(() => setOnboardingVisible(true));
+  }, []);
 
   const notificationCount = 3;
   const openNotifications = () => setActiveTab('notifications');
-  const toggleSelected = () => {
+  const toggleSelected = async () => {
     if (!selectedDelivery) return;
-    setDeliveries((current) =>
-      current.map((item) =>
-        item.id === selectedDelivery.id
-          ? {
-              ...item,
-              status: item.status === 'completed' ? 'pending' : 'completed',
-            }
-          : item,
-      ),
+    const currentOrder = orders.find(
+      (item) => item.id === selectedDelivery.id,
     );
+    if (!currentOrder) return;
+    const completed = currentOrder.status !== 'completed';
+    const nextOrder: DeliveryOrder = {
+      ...currentOrder,
+      status: completed ? 'completed' : 'pending',
+      schedule: {
+        ...currentOrder.schedule,
+        completedAt: completed ? new Date().toISOString() : undefined,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    setOrders((current) =>
+      current.map((item) => (item.id === nextOrder.id ? nextOrder : item)),
+    );
+    await deliveryRepository.save(nextOrder);
     setSelectedDelivery((current) =>
       current
         ? {
@@ -1505,6 +2129,15 @@ export default function RouteloApp() {
         />
       );
     }
+    if (activeTab === 'calendar') {
+      return (
+        <CalendarScreen
+          orders={orders}
+          onDeliveryPress={setSelectedDelivery}
+          onNotifications={openNotifications}
+        />
+      );
+    }
     if (activeTab === 'route') {
       return (
         <RouteScreen
@@ -1515,7 +2148,14 @@ export default function RouteloApp() {
       );
     }
     if (activeTab === 'notifications') return <NotificationsScreen />;
-    if (activeTab === 'settings') return <SettingsScreen />;
+    if (activeTab === 'settings') {
+      return (
+        <SettingsScreen
+          account={account}
+          onEditAccount={() => setOnboardingVisible(true)}
+        />
+      );
+    }
     return (
       <HomeScreen
         deliveries={deliveries}
@@ -1524,7 +2164,7 @@ export default function RouteloApp() {
         onNotifications={openNotifications}
       />
     );
-  }, [activeTab, deliveries]);
+  }, [account, activeTab, deliveries, orders]);
 
   return (
     <SafeAreaView style={styles.app} edges={['top', 'left', 'right']}>
@@ -1585,8 +2225,20 @@ export default function RouteloApp() {
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onRegister={(delivery) => {
-          setDeliveries((current) => [delivery, ...current]);
+          const order = legacyDeliveryToOrder(delivery);
+          order.source = { type: 'ocr' };
+          setOrders((current) => [order, ...current]);
+          deliveryRepository.save(order).catch(() => undefined);
           setActiveTab('deliveries');
+        }}
+      />
+      <OnboardingModal
+        visible={onboardingVisible}
+        initial={account}
+        onComplete={(state) => {
+          setAccount(state);
+          setOnboardingVisible(false);
+          accountRepository.save(state).catch(() => undefined);
         }}
       />
     </SafeAreaView>
@@ -1595,9 +2247,210 @@ export default function RouteloApp() {
 
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: C.background },
+  onboardingApp: { flex: 1, backgroundColor: C.background },
+  onboardingContent: { padding: 22, paddingBottom: 40 },
+  onboardingBrand: { alignItems: 'center', paddingVertical: 28 },
+  onboardingLogo: {
+    width: 62,
+    height: 62,
+    borderRadius: 22,
+    backgroundColor: C.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  onboardingTitle: { color: C.navy, fontSize: 27, fontWeight: '900' },
+  onboardingSubtitle: {
+    color: C.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 21,
+  },
+  onboardingChoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: C.surface,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: C.outline,
+    padding: 18,
+    minHeight: 96,
+    marginBottom: 12,
+  },
+  onboardingChoiceTitle: { color: C.navy, fontSize: 17, fontWeight: '800' },
+  onboardingChoiceText: {
+    color: C.textMuted,
+    lineHeight: 19,
+    marginTop: 4,
+  },
+  onboardingForm: {
+    backgroundColor: C.surface,
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: C.outline,
+  },
+  onboardingSectionTitle: {
+    color: C.navy,
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 8,
+    marginBottom: 9,
+  },
+  onboardingInput: {
+    minHeight: 52,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: C.outline,
+    backgroundColor: C.background,
+    paddingHorizontal: 14,
+    color: C.text,
+    marginBottom: 10,
+  },
+  energyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 10 },
+  energyChip: {
+    paddingHorizontal: 12,
+    minHeight: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: C.outline,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  energyChipActive: {
+    backgroundColor: C.primaryContainer,
+    borderColor: C.primary,
+  },
+  energyChipText: { color: C.textMuted, fontSize: 12, fontWeight: '700' },
+  energyChipTextActive: { color: C.primary },
+  onboardingPrivacy: {
+    color: C.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginVertical: 10,
+  },
   mainContent: { flex: 1 },
   flex: { flex: 1 },
   screenContent: { paddingHorizontal: 18, paddingBottom: 28 },
+  calendarModeRow: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 18,
+    backgroundColor: C.surfaceAlt,
+    marginBottom: 12,
+  },
+  calendarModeButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarModeButtonActive: {
+    backgroundColor: C.surface,
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  calendarModeText: { color: C.textMuted, fontWeight: '700' },
+  calendarModeTextActive: { color: C.primary },
+  calendarCard: {
+    backgroundColor: C.surface,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: C.outline,
+    padding: 14,
+    marginBottom: 22,
+  },
+  calendarToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  calendarTitle: { fontSize: 18, color: C.navy, fontWeight: '800' },
+  calendarWeekHeader: { flexDirection: 'row', marginBottom: 5 },
+  calendarWeekLabel: {
+    width: '14.2857%',
+    textAlign: 'center',
+    color: C.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarDay: {
+    width: '14.2857%',
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    gap: 2,
+  },
+  calendarDayWide: { minHeight: 64 },
+  calendarDaySelected: { backgroundColor: C.primaryContainer },
+  calendarDayText: { color: C.text, fontWeight: '700' },
+  calendarDayOutside: { color: '#B7C0CE' },
+  calendarDayTextSelected: { color: C.onPrimaryContainer },
+  calendarCount: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    backgroundColor: C.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarCountUrgent: { backgroundColor: C.danger },
+  calendarCountText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  calendarEmpty: {
+    backgroundColor: C.surface,
+    borderRadius: 22,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: C.outline,
+  },
+  calendarEmptyTitle: {
+    marginTop: 10,
+    fontSize: 16,
+    color: C.navy,
+    fontWeight: '800',
+  },
+  calendarEmptyText: {
+    marginTop: 5,
+    color: C.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  calendarAgendaCard: {
+    flexDirection: 'row',
+    backgroundColor: C.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.outline,
+    padding: 16,
+    marginBottom: 10,
+  },
+  calendarTimeColumn: { width: 86, paddingRight: 12 },
+  calendarAgendaTime: { fontSize: 16, color: C.primary, fontWeight: '900' },
+  calendarPrecision: {
+    marginTop: 4,
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  calendarAgendaBody: { flex: 1 },
+  calendarAgendaTitle: { color: C.navy, fontSize: 16, fontWeight: '800' },
+  calendarAgendaAddress: {
+    marginTop: 5,
+    color: C.textMuted,
+    lineHeight: 19,
+  },
+  calendarMetaRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  calendarUrgentText: { color: C.danger, fontSize: 12, fontWeight: '800' },
+  calendarEventText: { color: C.warning, fontSize: 12, fontWeight: '800' },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
