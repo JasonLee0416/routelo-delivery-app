@@ -42,10 +42,6 @@ import {
   OcrRecognizerUnavailableError,
   runHybridOcr,
 } from './services/ocr';
-import {
-  probePpOcrRuntime,
-  recognizeReceiptWithPpOcr,
-} from './services/ppocr';
 
 type TabKey =
   | 'home'
@@ -1082,36 +1078,6 @@ function SettingsScreen({
   const [eventAlerts, setEventAlerts] = useState(true);
   const [routeAlerts, setRouteAlerts] = useState(true);
   const [avoidTolls, setAvoidTolls] = useState(false);
-  const [ppOcrStatus, setPpOcrStatus] = useState('실행 전');
-
-  const runPpOcrProbe = async () => {
-    setPpOcrStatus('모델 확인 중');
-    const result = await probePpOcrRuntime();
-    if (result.error) {
-      setPpOcrStatus(result.error);
-      Alert.alert('PP-OCR 진단', result.error);
-      return;
-    }
-    const message = `Detector ${result.detector?.inputs[0]?.shape.join('×') || '-'} · Recognizer ${result.recognizer?.inputs[0]?.shape.join('×') || '-'} · smoke ${result.smoke?.processingMs.toFixed(1)}ms`;
-    setPpOcrStatus(message);
-    Alert.alert('PP-OCR 런타임 정상', message);
-  };
-
-  const runPpOcrFixture = async () => {
-    setPpOcrStatus('시험 이미지 인식 중');
-    try {
-      const result = await recognizeReceiptWithPpOcr(
-        'file:///data/user/0/com.jasonlee0312.routelo/files/KakaoTalk_20260621_070828835_01.jpg',
-      );
-      const message = `${result.lines.length}줄 · ${result.processingMs.toFixed(0)}ms · ${result.fullText.slice(0, 80) || '텍스트 없음'}`;
-      setPpOcrStatus(message);
-      Alert.alert('PP-OCR 시험 결과', message);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setPpOcrStatus(message);
-      Alert.alert('PP-OCR 시험 실패', message);
-    }
-  };
 
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
@@ -1184,26 +1150,6 @@ function SettingsScreen({
         <SettingRow icon="language-outline" title="언어" caption="한국어" />
         <View style={styles.divider} />
         <SettingRow icon="information-circle-outline" title="앱 정보" caption="RouteLO 1.0.0" />
-      </View>
-      <SectionHeader title="OCR 실험실" />
-      <View style={styles.settingsGroup}>
-        <SettingRow
-          icon="hardware-chip-outline"
-          title="PP-OCRv5 런타임 진단"
-          caption={ppOcrStatus}
-          onPress={runPpOcrProbe}
-        />
-        {__DEV__ && (
-          <>
-            <View style={styles.divider} />
-            <SettingRow
-              icon="document-text-outline"
-              title="저장소 시험 이미지 인식"
-              caption="개발용 고정 파일 경로에서 PP-OCR 실행"
-              onPress={runPpOcrFixture}
-            />
-          </>
-        )}
       </View>
     </ScrollView>
   );
