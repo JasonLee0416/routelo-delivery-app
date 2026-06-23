@@ -91,7 +91,7 @@ export type CaptureQuality = {
 };
 
 export type OcrPipelineResult = {
-  engine: 'mlkit' | 'mlkit+ppocrv5' | 'ppocrv5' | 'mlkit-demo' | 'cloud-fallback-demo';
+  engine: 'mlkit' | 'mlkit-demo' | 'cloud-fallback-demo';
   rawText: string;
   recognizedLines?: Array<{
     text: string;

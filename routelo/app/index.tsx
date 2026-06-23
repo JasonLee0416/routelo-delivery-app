@@ -2099,10 +2099,6 @@ function OcrScannerModal({
                   <Text style={styles.ocrSummaryMetaText}>
                     {result.engine === 'mlkit'
                       ? 'Android ML Kit 한국어 OCR'
-                      : result.engine === 'mlkit+ppocrv5'
-                        ? 'ML Kit + PP-OCRv5 보조 분석'
-                        : result.engine === 'ppocrv5'
-                          ? 'PP-OCRv5 온디바이스 분석'
                       : result.engine === 'mlkit-demo'
                         ? '샘플 모바일 OCR'
                         : '2차 고성능 OCR 재시도'}
