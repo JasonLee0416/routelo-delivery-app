@@ -42,6 +42,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify shared PP-OCR models
+        run: npm run verify:ocr-models
+
+      - name: Export iOS application assets
+        run: npx expo export --platform ios --output-dir dist-ios
+
+      - name: Verify PP-OCR models are bundled
+        run: |
+          test "$(find dist-ios -name '*.onnx' | wc -l | tr -d ' ')" -ge 2
+          find dist-ios -name '*.onnx' -print
+
       - name: Generate iOS project
         run: npx expo prebuild --platform ios --clean --no-install
 
@@ -56,5 +67,6 @@ jobs:
             -configuration Debug \
             -sdk iphonesimulator \
             -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath ios/build \
             CODE_SIGNING_ALLOWED=NO \
             build

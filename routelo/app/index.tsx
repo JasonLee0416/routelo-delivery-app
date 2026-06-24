@@ -54,7 +54,7 @@ import {
   inspectCaptureQuality,
   OcrNoTextDetectedError,
   OcrRecognizerUnavailableError,
-  runHybridOcr,
+  runReceiptOcr,
 } from './services/ocr';
 
 type TabKey =
@@ -1772,7 +1772,7 @@ function OcrScannerModal({
     setAssetInfo(info);
     setDemoMode(false);
     setResult({
-      engine: 'mlkit-demo',
+      engine: 'fixture',
       rawText: '',
       fields: [],
       documentConfidence: 0,
@@ -1790,7 +1790,7 @@ function OcrScannerModal({
     setImageUri(undefined);
     setDemoMode(true);
     setResult({
-      engine: 'mlkit-demo',
+      engine: 'fixture',
       rawText: '',
       fields: [],
       documentConfidence: 0,
@@ -1809,7 +1809,7 @@ function OcrScannerModal({
     }
     setStage('processing');
     try {
-      const next = await runHybridOcr(
+      const next = await runReceiptOcr(
         { ...assetInfo, uri: imageUri },
         demoMode ? DEMO_RECEIPT_TEXT : undefined,
       );
@@ -2065,11 +2065,9 @@ function OcrScannerModal({
                 </View>
                 <View style={styles.ocrSummaryMeta}>
                   <Text style={styles.ocrSummaryMetaText}>
-                    {result.engine === 'mlkit'
-                      ? 'Android ML Kit 한국어 OCR'
-                      : result.engine === 'mlkit-demo'
-                        ? '샘플 모바일 OCR'
-                        : '2차 고성능 OCR 재시도'}
+                    {result.engine === 'ppocrv5'
+                      ? `PP-OCRv5 온디바이스 OCR${result.modelVersion ? ` · ${result.modelVersion}` : ''}`
+                      : '명시적 테스트 샘플'}
                   </Text>
                   <Text style={styles.ocrSummaryMetaText}>
                     {result.variantsCompared}개 전처리 비교 · {result.processingMs}ms

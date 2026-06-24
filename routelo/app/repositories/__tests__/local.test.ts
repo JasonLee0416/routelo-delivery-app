@@ -108,7 +108,7 @@ describe('local repositories', () => {
       id: 'receipt-1',
       capturedAt: '2026-06-23T00:00:00Z',
       recognition: {
-        engine: 'mlkit',
+        engine: 'ppocrv5',
         processingMs: 10,
         fullText: '실제 원문',
         lines: [],
@@ -131,4 +131,3 @@ describe('local repositories', () => {
     );
   });
 });
-

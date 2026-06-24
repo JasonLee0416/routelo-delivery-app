@@ -15,6 +15,8 @@ type ImageAssetInfo = {
 };
 
 type RecognizedText = {
+  engine?: 'ppocrv5';
+  modelVersion?: string;
   fullText: string;
   processingMs: number;
   lines?: Array<{
@@ -26,6 +28,7 @@ type RecognizedText = {
       height: number;
     };
     cornerPoints?: Array<{ x: number; y: number }>;
+    confidence?: number;
   }>;
 };
 
@@ -665,7 +668,7 @@ export function parseReceiptText(
       Math.max(requiredFields.length, 1),
   );
   return {
-    engine: 'mlkit-demo',
+    engine: 'fixture',
     rawText: text,
     fields,
     documentConfidence,
@@ -676,7 +679,7 @@ export function parseReceiptText(
   };
 }
 
-export async function runHybridOcr(
+export async function runReceiptOcr(
   asset: ImageAssetInfo,
   rawText?: string,
   recognizeImage?: RecognizeImage,
@@ -693,15 +696,16 @@ export async function runHybridOcr(
     const recognize =
       recognizeImage ||
       (async (imageUri: string) => {
-        const { recognizeReceiptWithMlKit } = await import('./recognizer');
-        return recognizeReceiptWithMlKit(imageUri);
+        const { recognizeReceiptWithPpOcr } = await import('./recognizer');
+        return recognizeReceiptWithPpOcr(imageUri);
       });
     const recognized = await recognize(asset.uri);
     if (!recognized.fullText.trim()) throw new OcrNoTextDetectedError();
     const parsed = parseReceiptText(recognized.fullText, quality);
     return {
       ...parsed,
-      engine: 'mlkit',
+      engine: 'ppocrv5',
+      modelVersion: recognized.modelVersion,
       recognizedLines: recognized.lines,
       processingMs: recognized.processingMs,
     };
@@ -709,7 +713,7 @@ export async function runHybridOcr(
     if (error instanceof OcrNoTextDetectedError) throw error;
     throw new OcrRecognizerUnavailableError(
       error instanceof Error
-        ? `ML Kit OCR 실행에 실패했습니다: ${error.message}`
+        ? `PP-OCR 실행에 실패했습니다: ${error.message}`
         : undefined,
     );
   }

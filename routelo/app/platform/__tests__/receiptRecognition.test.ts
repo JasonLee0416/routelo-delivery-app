@@ -1,23 +1,27 @@
 import { receiptRecognitionCapability } from '../receiptRecognition';
 
 describe('receiptRecognitionCapability', () => {
-  test('uses ML Kit for the current Android production baseline', () => {
+  test('uses the same pinned PP-OCR model on Android', () => {
     expect(receiptRecognitionCapability('android')).toEqual({
       available: true,
-      engine: 'mlkit',
+      engine: 'ppocrv5',
+      modelVersion: 'rapidocr-v3.8.0-ppocrv5',
     });
   });
 
-  test('keeps iOS explicitly unavailable until its native adapter lands', () => {
+  test('uses the same pinned PP-OCR model on iOS', () => {
     expect(receiptRecognitionCapability('ios')).toEqual({
-      available: false,
-      reason: 'iOS receipt recognition is not installed yet.',
+      available: true,
+      engine: 'ppocrv5',
+      modelVersion: 'rapidocr-v3.8.0-ppocrv5',
     });
   });
 
   test('does not silently substitute OCR on web', () => {
     expect(receiptRecognitionCapability('web')).toEqual({
       available: false,
+      engine: 'ppocrv5',
+      modelVersion: 'rapidocr-v3.8.0-ppocrv5',
       reason: 'Receipt recognition is unavailable on web.',
     });
   });

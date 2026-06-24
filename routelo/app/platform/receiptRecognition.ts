@@ -1,42 +1,33 @@
 import { Platform } from 'react-native';
 
-export type ReceiptRecognitionLine = {
-  text: string;
-  boundingBox?: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-  cornerPoints?: Array<{ x: number; y: number }>;
-};
+import {
+  PP_OCR_MODEL_VERSION,
+} from '../ocr/ppocr/modelManifest';
+import type { PpOcrResult } from '../ocr/ppocr/types';
 
-export type ReceiptRecognitionResult = {
-  fullText: string;
-  lines: ReceiptRecognitionLine[];
-  processingMs: number;
-};
+export type ReceiptRecognitionResult = PpOcrResult;
 
 export type ReceiptRecognitionCapability = {
   available: boolean;
-  engine?: 'mlkit';
+  engine: 'ppocrv5';
+  modelVersion: string;
   reason?: string;
 };
 
 export function receiptRecognitionCapability(
   platform: typeof Platform.OS,
 ): ReceiptRecognitionCapability {
-  if (platform === 'android') {
-    return { available: true, engine: 'mlkit' };
-  }
-  if (platform === 'ios') {
+  if (platform === 'android' || platform === 'ios') {
     return {
-      available: false,
-      reason: 'iOS receipt recognition is not installed yet.',
+      available: true,
+      engine: 'ppocrv5',
+      modelVersion: PP_OCR_MODEL_VERSION,
     };
   }
   return {
     available: false,
+    engine: 'ppocrv5',
+    modelVersion: PP_OCR_MODEL_VERSION,
     reason: `Receipt recognition is unavailable on ${platform}.`,
   };
 }
@@ -53,10 +44,6 @@ export async function recognizeReceipt(
     throw new Error(capability.reason);
   }
 
-  // Native modules stay behind this capability boundary so shared workflows
-  // never import an Android implementation directly.
-  const { default: RouteloMlkitModule } = await import(
-    '../../modules/routelo-mlkit/src/RouteloMlkitModule'
-  );
-  return RouteloMlkitModule.recognizeAsync(imageUri);
+  const { recognizeReceiptWithPpOcr } = await import('../ocr/ppocr/runtime');
+  return recognizeReceiptWithPpOcr(imageUri);
 }

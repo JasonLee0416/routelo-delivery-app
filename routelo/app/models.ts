@@ -91,7 +91,8 @@ export type CaptureQuality = {
 };
 
 export type OcrPipelineResult = {
-  engine: 'mlkit' | 'mlkit-demo' | 'cloud-fallback-demo';
+  engine: 'ppocrv5' | 'fixture';
+  modelVersion?: string;
   rawText: string;
   recognizedLines?: Array<{
     text: string;
@@ -102,6 +103,7 @@ export type OcrPipelineResult = {
       height: number;
     };
     cornerPoints?: Array<{ x: number; y: number }>;
+    confidence?: number;
   }>;
   fields: OcrFieldResult[];
   documentConfidence: number;

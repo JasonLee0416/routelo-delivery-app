@@ -50,6 +50,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify shared PP-OCR models
+        run: npm run verify:ocr-models
+
+      - name: Export Android application assets
+        run: npx expo export --platform android --output-dir dist-android
+
+      - name: Verify PP-OCR models are bundled
+        run: |
+          test "$(find dist-android -name '*.onnx' | wc -l | tr -d ' ')" -ge 2
+          find dist-android -name '*.onnx' -print
+
       - name: Generate Android project
         run: npx expo prebuild --platform android --clean --no-install
 
