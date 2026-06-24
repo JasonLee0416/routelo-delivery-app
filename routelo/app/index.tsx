@@ -12,7 +12,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -20,6 +19,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import { SAMPLE_DELIVERIES } from './data';
 import { Delivery, OcrFieldKey, OcrFieldResult, OcrPipelineResult } from './models';
@@ -887,11 +890,12 @@ function DeliveryDetailSheet({
   onClose: () => void;
   onToggle: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   if (!delivery) return null;
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
-        <View style={styles.bottomSheet}>
+        <View style={[styles.bottomSheet, { paddingBottom: 28 + insets.bottom }]}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
             <View>
@@ -1410,6 +1414,7 @@ function OcrScannerModal({
 }
 
 export default function RouteloApp() {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [deliveries, setDeliveries] = useState<Delivery[]>(SAMPLE_DELIVERIES);
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery>();
@@ -1485,19 +1490,27 @@ export default function RouteloApp() {
   }, [activeTab, deliveries]);
 
   return (
-    <SafeAreaView style={styles.app}>
+    <SafeAreaView style={styles.app} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
       <View style={styles.mainContent}>{screen}</View>
       <Pressable
         testID="open-ocr-scanner"
-        style={styles.scanFab}
+        style={[styles.scanFab, { bottom: 78 + insets.bottom }]}
         onPress={() => setScannerVisible(true)}
       >
         <Ionicons name="scan-outline" size={23} color="#FFFFFF" />
         <Text style={styles.scanFabText}>인수증 스캔</Text>
       </Pressable>
       <View style={styles.bottomNavBoundary}>
-        <View style={styles.bottomNav}>
+        <View
+          style={[
+            styles.bottomNav,
+            {
+              minHeight: 66 + insets.bottom,
+              paddingBottom: Math.max(insets.bottom, 8),
+            },
+          ]}
+        >
           {tabs.map((tab) => {
             const selected = tab.key === activeTab;
             return (
@@ -2119,7 +2132,7 @@ const styles = StyleSheet.create({
     elevation: 14,
     paddingTop: 6,
   },
-  bottomNav: { minHeight: Platform.OS === 'ios' ? 78 : 70, flexDirection: 'row', paddingBottom: Platform.OS === 'ios' ? 6 : 4 },
+  bottomNav: { minHeight: 70, flexDirection: 'row', paddingBottom: 8 },
   navItem: { flex: 1, minHeight: 62, alignItems: 'center', justifyContent: 'center' },
   navIcon: { width: 50, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   navIconSelected: { backgroundColor: C.primaryContainer },
