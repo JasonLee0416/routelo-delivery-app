@@ -47,8 +47,15 @@ export function optimizeByNearestNeighbor(
 }
 
 export function calculateFeeByAddress(address: string, settings: FeeSettings) {
-  const district = Object.keys(settings.districtFees).find((name) => address.includes(name));
+  const district = findDistrictByAddress(address, settings);
   return district ? settings.districtFees[district] : 15000;
+}
+
+export function findDistrictByAddress(address: string, settings: FeeSettings) {
+  const compactAddress = address.replace(/\s/g, '');
+  return Object.keys(settings.districtFees).find((name) =>
+    compactAddress.includes(name.replace(/\s/g, '')),
+  );
 }
 
 export async function geocodeAddress(address: string) {

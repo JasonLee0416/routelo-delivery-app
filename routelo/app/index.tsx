@@ -23,7 +23,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
-import { SAMPLE_DELIVERIES } from './data';
+import { SAMPLE_DELIVERIES, SAMPLE_FUEL_LOGS } from './data';
 import { AccountState, EnergyType } from './account';
 import { accountRepository } from './account/native';
 import {
@@ -32,9 +32,23 @@ import {
   orderToLegacyDelivery,
   toCalendarDeliveryItem,
 } from './domain';
-import { Delivery, OcrFieldKey, OcrFieldResult, OcrPipelineResult } from './models';
+import {
+  Delivery,
+  FeeSettings,
+  FuelLog,
+  OcrFieldKey,
+  OcrFieldResult,
+  OcrPipelineResult,
+} from './models';
 import { deliveryRepository } from './repositories/native';
-import { optimizeByNearestNeighbor } from './services/maps';
+import {
+  calculateFeeByAddress,
+  findDistrictByAddress,
+  optimizeByNearestNeighbor,
+} from './services/maps';
+import { summarizeDailyProfit } from './services/profit';
+import { DEFAULT_FEE_SETTINGS, GYEONGGI_DISTRICTS, SEOUL_DISTRICTS } from './settings/districts';
+import { settingsRepository } from './settings/native';
 import {
   DEMO_RECEIPT_TEXT,
   inspectCaptureQuality,
@@ -70,6 +84,17 @@ const C = {
   danger: '#C93434',
   dangerBg: '#FDE7E7',
 };
+
+const DARK_SURFACE = {
+  app: '#101827',
+  surface: '#172033',
+  surfaceAlt: '#243047',
+  text: '#F7FAFC',
+  muted: '#A9B4C7',
+  outline: '#31405A',
+};
+
+const formatWon = (value: number) => `${Math.round(value).toLocaleString('ko-KR')}원`;
 
 const tabs: Array<{
   key: TabKey;
@@ -717,10 +742,14 @@ const timeLabel = (value?: string) =>
 
 function CalendarScreen({
   orders,
+  fuelLogs,
+  settings,
   onDeliveryPress,
   onNotifications,
 }: {
   orders: DeliveryOrder[];
+  fuelLogs: FuelLog[];
+  settings: FeeSettings;
   onDeliveryPress: (delivery: Delivery) => void;
   onNotifications: () => void;
 }) {
@@ -760,6 +789,16 @@ function CalendarScreen({
   }, [items]);
   const selectedDate = formatDateKey(cursor);
   const selectedItems = byDate.get(selectedDate) || [];
+  const dailySummaries = useMemo(
+    () => summarizeDailyProfit(orders, fuelLogs, settings),
+    [fuelLogs, orders, settings],
+  );
+  const selectedSummary = dailySummaries.get(selectedDate) || {
+    revenue: 0,
+    fuelCost: 0,
+    net: 0,
+    count: 0,
+  };
   const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const monthGridStart = new Date(monthStart);
   monthGridStart.setDate(1 - monthStart.getDay());
@@ -838,6 +877,7 @@ function CalendarScreen({
           {visibleDays.map((date) => {
             const key = formatDateKey(date);
             const count = byDate.get(key)?.length || 0;
+            const summary = dailySummaries.get(key);
             const selected = key === selectedDate;
             const outside =
               mode === 'month' && date.getMonth() !== cursor.getMonth();
@@ -863,7 +903,7 @@ function CalendarScreen({
                 >
                   {date.getDate()}
                 </Text>
-                {count > 0 && (
+                {false && count > 0 && (
                   <View
                     style={[
                       styles.calendarCount,
@@ -871,6 +911,25 @@ function CalendarScreen({
                     ]}
                   >
                     <Text style={styles.calendarCountText}>{count}</Text>
+                  </View>
+                )}
+                {summary && (summary.revenue > 0 || summary.fuelCost > 0) && (
+                  <View style={styles.calendarMoneyStack}>
+                    <Text
+                      style={[
+                        styles.calendarNetText,
+                        summary.net < 0 && styles.calendarNetTextNegative,
+                        urgent && styles.calendarNetTextUrgent,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {summary.net >= 10000
+                        ? `${Math.round(summary.net / 10000)}만`
+                        : formatWon(summary.net)}
+                    </Text>
+                    <Text style={styles.calendarFuelText} numberOfLines={1}>
+                      -{formatWon(summary.fuelCost)}
+                    </Text>
                   </View>
                 )}
               </Pressable>
@@ -882,6 +941,27 @@ function CalendarScreen({
         title={`${selectedDate} 일정`}
         caption={`${selectedItems.length}건`}
       />
+      <View style={styles.profitSummaryCard}>
+        <View>
+          <Text style={styles.profitSummaryLabel}>당일 순수익</Text>
+          <Text
+            style={[
+              styles.profitSummaryValue,
+              selectedSummary.net < 0 && styles.profitSummaryValueNegative,
+            ]}
+          >
+            {formatWon(selectedSummary.net)}
+          </Text>
+        </View>
+        <View style={styles.profitSummaryMeta}>
+          <Text style={styles.profitSummaryMetaText}>
+            배송 수수료 {formatWon(selectedSummary.revenue)}
+          </Text>
+          <Text style={styles.profitSummaryMetaText}>
+            유류비 차감 {formatWon(selectedSummary.fuelCost)}
+          </Text>
+        </View>
+      </View>
       {selectedItems.length === 0 ? (
         <View style={styles.calendarEmpty}>
           <Ionicons name="calendar-clear-outline" size={30} color={C.textMuted} />
@@ -1069,15 +1149,35 @@ function SettingRow({
 
 function SettingsScreen({
   account,
+  settings,
+  onSettingsChange,
   onEditAccount,
 }: {
   account?: AccountState;
+  settings: FeeSettings;
+  onSettingsChange: (settings: FeeSettings) => void;
   onEditAccount: () => void;
 }) {
   const [deadlineAlerts, setDeadlineAlerts] = useState(true);
   const [eventAlerts, setEventAlerts] = useState(true);
   const [routeAlerts, setRouteAlerts] = useState(true);
   const [avoidTolls, setAvoidTolls] = useState(false);
+
+  const updateSettings = (next: FeeSettings) => {
+    onSettingsChange(next);
+    settingsRepository.save(next).catch(() => undefined);
+  };
+
+  const updateDistrictFee = (district: string, value: string) => {
+    const numeric = Number(value.replace(/[^\d]/g, ''));
+    updateSettings({
+      ...settings,
+      districtFees: {
+        ...settings.districtFees,
+        [district]: Number.isFinite(numeric) ? numeric : 0,
+      },
+    });
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
@@ -1145,11 +1245,65 @@ function SettingsScreen({
 
       <SectionHeader title="앱 설정" />
       <View style={styles.settingsGroup}>
-        <SettingRow icon="color-palette-outline" title="화면 모드" caption="시스템 기본 설정 사용" />
+        <SettingRow
+          icon="color-palette-outline"
+          title="화면 모드"
+          caption={settings.themeMode === 'dark' ? '다크 모드 사용 중' : '라이트 모드 사용 중'}
+          trailing={
+            <Switch
+              value={settings.themeMode === 'dark'}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  ...settings,
+                  themeMode: enabled ? 'dark' : 'light',
+                })
+              }
+              trackColor={{ true: C.primary }}
+            />
+          }
+        />
         <View style={styles.divider} />
         <SettingRow icon="language-outline" title="언어" caption="한국어" />
         <View style={styles.divider} />
         <SettingRow icon="information-circle-outline" title="앱 정보" caption="RouteLO 1.0.0" />
+      </View>
+      <SectionHeader
+        title="지역별 배달 수수료"
+        caption="서울 25개 자치구와 경기도 31개 시군별 금액을 회사 정책에 맞게 설정합니다."
+      />
+      <View style={styles.districtFeePanel}>
+        <Text style={styles.districtFeeGroupTitle}>서울 지역</Text>
+        {SEOUL_DISTRICTS.map((district) => (
+          <View key={district} style={styles.districtFeeRow}>
+            <Text style={styles.districtFeeName}>{district}</Text>
+            <TextInput
+              value={String(settings.districtFees[district] || 0)}
+              onChangeText={(value) => updateDistrictFee(district, value)}
+              keyboardType="number-pad"
+              placeholder="15000"
+              placeholderTextColor="#6B7280"
+              style={styles.districtFeeInput}
+            />
+            <Text style={styles.districtFeeUnit}>원</Text>
+          </View>
+        ))}
+        <Text style={[styles.districtFeeGroupTitle, styles.districtFeeGroupSpacing]}>
+          경기도 지역
+        </Text>
+        {GYEONGGI_DISTRICTS.map((district) => (
+          <View key={district} style={styles.districtFeeRow}>
+            <Text style={styles.districtFeeName}>{district}</Text>
+            <TextInput
+              value={String(settings.districtFees[district] || 0)}
+              onChangeText={(value) => updateDistrictFee(district, value)}
+              keyboardType="number-pad"
+              placeholder="15000"
+              placeholderTextColor="#6B7280"
+              style={styles.districtFeeInput}
+            />
+            <Text style={styles.districtFeeUnit}>원</Text>
+          </View>
+        ))}
       </View>
     </ScrollView>
   );
@@ -1322,6 +1476,7 @@ function OnboardingModal({
                 value={displayName}
                 onChangeText={setDisplayName}
                 placeholder="기사님 이름 또는 닉네임"
+                placeholderTextColor="#6B7280"
               />
               <TextInput
                 style={styles.onboardingInput}
@@ -1330,6 +1485,7 @@ function OnboardingModal({
                 autoCapitalize="none"
                 keyboardType="email-address"
                 placeholder="이메일"
+                placeholderTextColor="#6B7280"
               />
               {!initial && (
                 <TextInput
@@ -1338,6 +1494,7 @@ function OnboardingModal({
                   onChangeText={setPassword}
                   secureTextEntry
                   placeholder="비밀번호 8자 이상"
+                  placeholderTextColor="#6B7280"
                 />
               )}
               <Text style={styles.onboardingSectionTitle}>업무 차량</Text>
@@ -1346,6 +1503,7 @@ function OnboardingModal({
                 value={vehicleModel}
                 onChangeText={setVehicleModel}
                 placeholder="차종 예: 현대 포터2"
+                placeholderTextColor="#6B7280"
               />
               <View style={styles.energyRow}>
                 {(['gasoline', 'diesel', 'lpg', 'hybrid', 'electric'] as EnergyType[]).map(
@@ -1388,6 +1546,7 @@ function OnboardingModal({
                     ? '배터리 용량(kWh)'
                     : '연료탱크 용량(L)'
                 }
+                placeholderTextColor="#6B7280"
               />
               <Text style={styles.onboardingPrivacy}>
                 이 정보는 기사님의 배송 수익과 차량 운영비를 더 정확하게 분석하기
@@ -2012,6 +2171,8 @@ export default function RouteloApp() {
   const [scannerVisible, setScannerVisible] = useState(false);
   const [account, setAccount] = useState<AccountState>();
   const [onboardingVisible, setOnboardingVisible] = useState(false);
+  const [settings, setSettings] = useState<FeeSettings>(DEFAULT_FEE_SETTINGS);
+  const [fuelLogs] = useState<FuelLog[]>(SAMPLE_FUEL_LOGS);
 
   useEffect(() => {
     deliveryRepository
@@ -2031,6 +2192,13 @@ export default function RouteloApp() {
         else setOnboardingVisible(true);
       })
       .catch(() => setOnboardingVisible(true));
+  }, []);
+
+  useEffect(() => {
+    settingsRepository
+      .get()
+      .then(setSettings)
+      .catch(() => undefined);
   }, []);
 
   const notificationCount = 3;
@@ -2079,6 +2247,8 @@ export default function RouteloApp() {
       return (
         <CalendarScreen
           orders={orders}
+          fuelLogs={fuelLogs}
+          settings={settings}
           onDeliveryPress={setSelectedDelivery}
           onNotifications={openNotifications}
         />
@@ -2098,6 +2268,8 @@ export default function RouteloApp() {
       return (
         <SettingsScreen
           account={account}
+          settings={settings}
+          onSettingsChange={setSettings}
           onEditAccount={() => setOnboardingVisible(true)}
         />
       );
@@ -2110,12 +2282,17 @@ export default function RouteloApp() {
         onNotifications={openNotifications}
       />
     );
-  }, [account, activeTab, deliveries, orders]);
+  }, [account, activeTab, deliveries, fuelLogs, orders, settings]);
+
+  const darkMode = settings.themeMode === 'dark';
 
   return (
-    <SafeAreaView style={styles.app} edges={['top', 'left', 'right']}>
-      <StatusBar style="dark" />
-      <View style={styles.mainContent}>{screen}</View>
+    <SafeAreaView
+      style={[styles.app, darkMode && styles.appDark]}
+      edges={['top', 'left', 'right']}
+    >
+      <StatusBar style={darkMode ? 'light' : 'dark'} />
+      <View style={[styles.mainContent, darkMode && styles.mainContentDark]}>{screen}</View>
       <Pressable
         testID="open-ocr-scanner"
         style={[styles.scanFab, { bottom: 78 + insets.bottom }]}
@@ -2124,10 +2301,11 @@ export default function RouteloApp() {
         <Ionicons name="scan-outline" size={23} color="#FFFFFF" />
         <Text style={styles.scanFabText}>인수증 스캔</Text>
       </Pressable>
-      <View style={styles.bottomNavBoundary}>
+      <View style={[styles.bottomNavBoundary, darkMode && styles.bottomNavBoundaryDark]}>
         <View
           style={[
             styles.bottomNav,
+            darkMode && styles.bottomNavDark,
             {
               minHeight: 66 + insets.bottom,
               paddingBottom: Math.max(insets.bottom, 8),
@@ -2171,7 +2349,13 @@ export default function RouteloApp() {
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onRegister={(delivery) => {
-          const order = legacyDeliveryToOrder(delivery);
+          const fee = calculateFeeByAddress(delivery.deliveryAddress, settings);
+          const district = findDistrictByAddress(delivery.deliveryAddress, settings);
+          const order = legacyDeliveryToOrder({
+            ...delivery,
+            fee,
+          });
+          order.settlement.district = district;
           order.source = { type: 'ocr' };
           setOrders((current) => [order, ...current]);
           deliveryRepository.save(order).catch(() => undefined);
@@ -2193,6 +2377,7 @@ export default function RouteloApp() {
 
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: C.background },
+  appDark: { backgroundColor: DARK_SURFACE.app },
   onboardingApp: { flex: 1, backgroundColor: C.background },
   onboardingContent: { padding: 22, paddingBottom: 40 },
   onboardingBrand: { alignItems: 'center', paddingVertical: 28 },
@@ -2277,6 +2462,7 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   mainContent: { flex: 1 },
+  mainContentDark: { backgroundColor: DARK_SURFACE.app },
   flex: { flex: 1 },
   screenContent: { paddingHorizontal: 18, paddingBottom: 28 },
   calendarModeRow: {
@@ -2350,6 +2536,45 @@ const styles = StyleSheet.create({
   },
   calendarCountUrgent: { backgroundColor: C.danger },
   calendarCountText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  calendarMoneyStack: {
+    width: '100%',
+    paddingHorizontal: 2,
+    alignItems: 'center',
+    gap: 1,
+  },
+  calendarNetText: {
+    color: C.success,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  calendarNetTextNegative: { color: C.danger },
+  calendarNetTextUrgent: { color: C.warning },
+  calendarFuelText: {
+    color: C.textMuted,
+    fontSize: 8,
+    fontWeight: '700',
+  },
+  profitSummaryCard: {
+    backgroundColor: C.surface,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: C.outline,
+    padding: 18,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+  profitSummaryLabel: { color: C.textMuted, fontSize: 12, fontWeight: '700' },
+  profitSummaryValue: {
+    color: C.success,
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  profitSummaryValueNegative: { color: C.danger },
+  profitSummaryMeta: { justifyContent: 'center', alignItems: 'flex-end', gap: 4 },
+  profitSummaryMetaText: { color: C.textMuted, fontSize: 11, fontWeight: '700' },
   calendarEmpty: {
     backgroundColor: C.surface,
     borderRadius: 22,
@@ -2634,6 +2859,49 @@ const styles = StyleSheet.create({
   profileCaption: { color: '#AEBBD1', fontSize: 10, marginTop: 4 },
   iconButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: C.primaryContainer, alignItems: 'center', justifyContent: 'center' },
   settingsGroup: { borderRadius: 22, backgroundColor: C.surface, borderWidth: 1, borderColor: C.outline, overflow: 'hidden' },
+  districtFeePanel: {
+    backgroundColor: C.surface,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: C.outline,
+    padding: 14,
+    marginBottom: 16,
+  },
+  districtFeeGroupTitle: {
+    color: C.navy,
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  districtFeeGroupSpacing: { marginTop: 16 },
+  districtFeeRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.outline,
+    paddingVertical: 7,
+  },
+  districtFeeName: {
+    flex: 1,
+    color: C.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  districtFeeInput: {
+    width: 104,
+    minHeight: 40,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: C.outline,
+    backgroundColor: C.background,
+    paddingHorizontal: 10,
+    color: C.text,
+    textAlign: 'right',
+    fontWeight: '800',
+  },
+  districtFeeUnit: { width: 18, color: C.textMuted, fontSize: 12, fontWeight: '700' },
   settingRow: { minHeight: 76, paddingHorizontal: 15, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
   settingIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: C.primaryContainer, alignItems: 'center', justifyContent: 'center' },
   settingTitle: { color: C.text, fontSize: 13, fontWeight: '800' },
@@ -2968,7 +3236,13 @@ const styles = StyleSheet.create({
     elevation: 14,
     paddingTop: 6,
   },
+  bottomNavBoundaryDark: {
+    backgroundColor: DARK_SURFACE.surface,
+    borderTopColor: DARK_SURFACE.outline,
+    shadowColor: '#000000',
+  },
   bottomNav: { minHeight: 70, flexDirection: 'row', paddingBottom: 8 },
+  bottomNavDark: { backgroundColor: DARK_SURFACE.surface },
   navItem: { flex: 1, minHeight: 62, alignItems: 'center', justifyContent: 'center' },
   navIcon: { width: 50, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   navIconSelected: { backgroundColor: C.primaryContainer },
