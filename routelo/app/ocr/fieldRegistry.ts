@@ -13,15 +13,75 @@ export type FieldDef = {
 };
 
 // 별칭 사전을 바꾸면 버전을 올린다. 레코드에 어떤 버전으로 매핑했는지 남긴다.
-export const FIELD_REGISTRY_VERSION = 2;
+export const FIELD_REGISTRY_VERSION = 3;
 
 // 별칭은 services/ocr.ts 의 기존 키워드 + 인수증 표면형을 시드로 합친 것.
 export const DEFAULT_FIELD_REGISTRY: FieldDef[] = [
+  {
+    key: 'orderNumber',
+    label: '주문번호',
+    type: 'text',
+    aliases: ['주문번호', '주문 번호', '주문서 No', '접수번호', '관리번호', '오더번호', '주문코드'],
+  },
+  {
+    key: 'orderingVendorName',
+    label: '발주화원',
+    type: 'text',
+    aliases: ['발주화원', '발주 화원', '발주처', '발주회원', '주처'],
+  },
+  {
+    key: 'orderingVendorTel',
+    label: '발주화원 전화번호',
+    type: 'tel',
+    aliases: ['발주화원 전화', '발주처 전화', '발주 전화', '발주처 연락처'],
+  },
+  {
+    key: 'fulfillingVendorName',
+    label: '배송화원',
+    type: 'text',
+    aliases: ['배송화원', '배송 화원', '수주화원', '수주회원', '배송처 화원'],
+  },
+  {
+    key: 'fulfillingVendorTel',
+    label: '배송화원 전화번호',
+    type: 'tel',
+    aliases: ['배송화원 전화', '수주화원 전화', '배송 전화', '수주처 연락처'],
+  },
+  {
+    key: 'productName',
+    label: '상품명',
+    type: 'text',
+    aliases: ['상품명', '배송상품', '품명', '상품', '배송 품목'],
+  },
+  {
+    key: 'productQuantity',
+    label: '수량',
+    type: 'number',
+    aliases: ['수량', '개수', '갯수', '상품수량'],
+  },
+  {
+    key: 'ribbonText',
+    label: '리본 문구',
+    type: 'text',
+    aliases: ['리본문구', '리본 문구', '리본메세지', '리본메시지', '경조사어', '리본'],
+  },
   {
     key: 'deliveryDate',
     label: '배송 날짜',
     type: 'datetime',
     aliases: ['배송일자', '배달일자', '배송일', '배달일', '납품일', '예식일', '배송날짜', '배송 날짜'],
+  },
+  {
+    key: 'deliveryWindowStart',
+    label: '배송 시작 시간',
+    type: 'time',
+    aliases: ['배송 시작', '배달 시작', '배송가능시간', '배달 가능 시간'],
+  },
+  {
+    key: 'deliveryWindowEnd',
+    label: '배송 종료 시간',
+    type: 'time',
+    aliases: ['배송 종료', '배달 종료', '배송 마감', '배달 마감'],
   },
   {
     key: 'strictTime',
@@ -58,12 +118,6 @@ export const DEFAULT_FIELD_REGISTRY: FieldDef[] = [
     label: '연락처',
     type: 'tel',
     aliases: ['연락처', '전화번호', '전화', '휴대폰', '핸드폰', '연락'],
-  },
-  {
-    key: 'orderNumber',
-    label: '주문번호',
-    type: 'text',
-    aliases: ['주문번호', '주문 번호', '접수번호', '관리번호', '오더번호'],
   },
   {
     key: 'memo',

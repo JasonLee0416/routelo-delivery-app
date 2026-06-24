@@ -80,9 +80,10 @@ describe('normalizeReceipt', () => {
     REGISTRY,
   );
 
-  it('혼합 레이아웃에서 9개 필드를 정확히 추출한다', () => {
+  it('혼합 레이아웃에서 지원 필드를 정확히 추출한다', () => {
     expect(result.fields).toEqual({
       orderNumber: 'FL-20260621-1842',
+      productName: '축하 3단 화환 2개',
       deliveryDate: '2026.06.21',
       venueName: '더채플앳청담',
       deliveryAddress: '서울 강남구 선릉로 757 더채플앳청담 3층',
@@ -94,10 +95,9 @@ describe('normalizeReceipt', () => {
     });
   });
 
-  it('매칭 실패 줄(제목·미지원 필드)은 버리지 않고 unmapped에 보존한다(무손실)', () => {
+  it('매칭 실패 줄은 버리지 않고 unmapped에 보존한다(무손실)', () => {
     expect(result.unmapped).toEqual([
       { label: '', value: '배송 인수증' },
-      { label: '', value: '상품 축하 3단 화환 2개' },
     ]);
   });
 });

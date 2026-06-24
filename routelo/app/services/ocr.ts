@@ -1,4 +1,9 @@
-import { CaptureQuality, OcrFieldKey, OcrFieldResult, OcrPipelineResult } from '../models';
+import {
+  CaptureQuality,
+  OcrFieldKey,
+  OcrFieldResult,
+  OcrPipelineResult,
+} from '../models';
 import { DEFAULT_FIELD_REGISTRY } from '../ocr/fieldRegistry';
 import { normalizeReceipt } from '../ocr/normalize';
 
@@ -27,7 +32,9 @@ type RecognizedText = {
 type RecognizeImage = (imageUri: string) => Promise<RecognizedText>;
 
 export class OcrRecognizerUnavailableError extends Error {
-  constructor(message = '실제 OCR 인식 엔진을 사용할 수 없습니다. 촬영한 사진에서 임의의 정보를 생성하지 않습니다.') {
+  constructor(
+    message = '실제 OCR 인식 엔진을 사용할 수 없습니다. 촬영한 사진에서 임의의 정보를 생성하지 않습니다.',
+  ) {
     super(message);
     this.name = 'OcrRecognizerUnavailableError';
   }
@@ -35,55 +42,83 @@ export class OcrRecognizerUnavailableError extends Error {
 
 export class OcrNoTextDetectedError extends Error {
   constructor() {
-    super('사진에서 인식 가능한 글자를 찾지 못했습니다. 인수증 전체가 선명하게 보이도록 다시 촬영해 주세요.');
+    super(
+      '사진에서 인식 가능한 글자를 찾지 못했습니다. 인수증 전체가 선명하게 보이도록 다시 촬영해 주세요.',
+    );
     this.name = 'OcrNoTextDetectedError';
   }
 }
 
 const LABELS: Record<OcrFieldKey, string> = {
+  orderNumber: '주문번호',
+  orderingVendorName: '발주화원',
+  orderingVendorTel: '발주화원 전화번호',
+  fulfillingVendorName: '배송화원',
+  fulfillingVendorTel: '배송화원 전화번호',
+  productName: '상품명',
+  productQuantity: '수량',
+  ribbonText: '리본 문구',
   deliveryDate: '배송 날짜',
+  deliveryWindowStart: '배송 시작 시간',
+  deliveryWindowEnd: '배송 종료 시간',
   strictTime: '배달 엄수 시간',
   eventTime: '예식 시간',
   venueName: '상호명 / 예식장명',
   deliveryAddress: '배송 주소',
   recipientName: '수령자 / 담당자',
-  recipientTel: '연락처',
-  orderNumber: '주문번호',
+  recipientTel: '수령인 연락처',
   memo: '특이사항 / 메모',
 };
 
 const REQUIRED = new Set<OcrFieldKey>([
   'deliveryDate',
-  'strictTime',
-  'venueName',
+  'productName',
   'deliveryAddress',
-  'recipientTel',
 ]);
 
 export const DEMO_RECEIPT_TEXT = `
 배송 인수증
 주문번호 FL-20260621-1842
+발주화원 마음꽃화원
+발주화원 전화 02-518-2400
+배송화원 로즈플라워
+배송화원 전화 02-2038-1188
 배송일자 2026.06.21
 업체명 더채플앳청담
 배송주소 서울 강남구 선릉로 757 더채플앳청담 3층
 받는 분 김민준 실장
-연락처 010-4821-7732
+수령인 전화 010-4821-7732
 배달 엄수 10:30까지
 예식 시간 오전 11시
 상품 축하 3단 화환 2개
+리본 문구 결혼을 축하드립니다
 요청사항 예식 시작 30분 전 설치 완료, 설치 후 사진 전송
 `;
+
+const PHONE_PATTERN =
+  /(?<!\d)(?:01[016789][-\s]?\d{3,4}[-\s]?\d{4}|02[-\s]?\d{3,4}[-\s]?\d{4}|0[3-6]\d[-\s]?\d{3,4}[-\s]?\d{4})(?!\d)/g;
+const VALID_PHONE =
+  /^(?:01[016789]-\d{3,4}-\d{4}|02-\d{3,4}-\d{4}|0[3-6]\d-\d{3,4}-\d{4})$/;
 
 const normalizeTime = (value: string) => {
   const compact = value.replace(/\s/g, '');
   const colon = compact.match(/(\d{1,2}):(\d{2})/);
-  if (colon) return `${colon[1].padStart(2, '0')}:${colon[2]}`;
+  if (colon) {
+    const hour = Number(colon[1]);
+    const minute = Number(colon[2]);
+    if (hour <= 23 && minute <= 59) {
+      return `${String(hour).padStart(2, '0')}:${colon[2]}`;
+    }
+    return '';
+  }
   const korean = compact.match(/(오전|오후)?(\d{1,2})시(?:(\d{1,2})분)?/);
-  if (!korean) return value;
+  if (!korean) return '';
   let hour = Number(korean[2]);
+  const minute = Number(korean[3] || 0);
+  if (hour > 23 || minute > 59) return '';
   if (korean[1] === '오후' && hour < 12) hour += 12;
   if (korean[1] === '오전' && hour === 12) hour = 0;
-  return `${String(hour).padStart(2, '0')}:${String(Number(korean[3] || 0)).padStart(2, '0')}`;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 };
 
 const normalizePhone = (value: string) => {
@@ -94,13 +129,13 @@ const normalizePhone = (value: string) => {
   if (digits.startsWith('02') && (digits.length === 9 || digits.length === 10)) {
     return `${digits.slice(0, 2)}-${digits.slice(2, -4)}-${digits.slice(-4)}`;
   }
-  if (digits.length === 10 || digits.length === 11) {
+  if (/^0[3-6]\d/.test(digits) && (digits.length === 10 || digits.length === 11)) {
     return `${digits.slice(0, 3)}-${digits.slice(3, -4)}-${digits.slice(-4)}`;
   }
-  return value;
+  return '';
 };
 
-const candidates = (text: string, pattern: RegExp) =>
+const allMatches = (text: string, pattern: RegExp) =>
   [...text.matchAll(pattern)].map((match) => match[0]);
 
 function field(
@@ -109,43 +144,159 @@ function field(
   confidence: number,
   sourceText: string,
   alternatives: string[] = [],
+  options: {
+    sourceLineIds?: string[];
+    extractionMethod?: OcrFieldResult['extractionMethod'];
+    validationErrors?: string[];
+    forceReview?: boolean;
+  } = {},
 ): OcrFieldResult {
-  const required = REQUIRED.has(key);
-  const status = !value
+  const validationErrors = options.validationErrors || [];
+  const status: OcrFieldResult['status'] = !value
     ? 'missing'
-    : confidence >= 85
-      ? 'confirmed'
-      : confidence >= 60
+    : validationErrors.length
+      ? 'warning'
+      : options.forceReview
         ? 'review'
-        : 'warning';
+        : confidence >= 85
+          ? 'confirmed'
+          : confidence >= 60
+            ? 'review'
+            : 'warning';
   return {
     key,
     label: LABELS[key],
     value,
+    rawValue: sourceText || undefined,
     confidence: value ? confidence : 0,
-    required,
+    required: REQUIRED.has(key),
     sourceText,
+    sourceLineIds: options.sourceLineIds,
+    extractionMethod: options.extractionMethod,
+    validationErrors,
     alternatives,
     status,
   };
+}
+
+const compactLabel = (value: string) =>
+  value.replace(/[\s:：|[\]()]/g, '').toLowerCase();
+
+const lineId = (index: number) => `line-${index + 1}`;
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findLabeledValue(lines: string[], aliases: string[]) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    for (const alias of aliases) {
+      if (!compactLabel(line).startsWith(compactLabel(alias))) continue;
+      const value = line
+        .replace(
+          new RegExp(`^\\s*${escapeRegExp(alias)}\\s*[:：|]?\\s*`, 'i'),
+          '',
+        )
+        .trim();
+      if (!value || compactLabel(value) === compactLabel(alias)) continue;
+      return {
+        value,
+        sourceText: line,
+        sourceLineIds: [lineId(index)],
+      };
+    }
+  }
+  return undefined;
+}
+
+function firstMatchingLine(
+  lines: string[],
+  predicate: (line: string) => boolean,
+) {
+  const index = lines.findIndex(predicate);
+  if (index < 0) return undefined;
+  return {
+    value: lines[index],
+    sourceText: lines[index],
+    sourceLineIds: [lineId(index)],
+  };
+}
+
+function validatedPhoneCandidate(
+  candidate: ReturnType<typeof findLabeledValue>,
+) {
+  if (!candidate) return undefined;
+  const value = allMatches(candidate.value, PHONE_PATTERN)
+    .map(normalizePhone)
+    .find((phone) => VALID_PHONE.test(phone));
+  return value ? { ...candidate, value } : undefined;
+}
+
+function safeRecipientName(value: string) {
+  const trimmed = value.trim();
+  if (
+    !trimmed ||
+    /플라워|화원|반드시|이름|성명|수령자|인수자|받는분|받는 분/.test(
+      trimmed,
+    )
+  ) {
+    return '';
+  }
+  return trimmed.replace(/\s*(실장|팀장|담당자)$/, ' $1');
+}
+
+function normalizeQuantity(value: string) {
+  const explicit = value.match(/수량\s*[|:]?\s*(\d{1,2})/);
+  const count = explicit || value.match(/(\d{1,2})\s*개/);
+  const quantity = count ? Number(count[1]) : NaN;
+  return Number.isInteger(quantity) && quantity > 0 && quantity <= 99
+    ? String(quantity)
+    : '';
+}
+
+function normalizeDate(text: string) {
+  const exact = text.match(/20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2}/)?.[0];
+  if (!exact) return '';
+  const [year, month, day] = exact.split(/[.\-/]/).map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return '';
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 export function inspectCaptureQuality(asset: ImageAssetInfo): CaptureQuality {
   const width = asset.width || 1200;
   const height = asset.height || 1600;
   const pixels = width * height;
-  const coverage = Math.min(98, Math.max(52, (Math.min(width, height) / Math.max(width, height)) * 145));
+  const coverage = Math.min(
+    98,
+    Math.max(52, (Math.min(width, height) / Math.max(width, height)) * 145),
+  );
   const resolutionScore = Math.min(100, pixels / 18000);
   const blur = Math.round(Math.min(96, 62 + resolutionScore * 0.34));
   const brightness = 82;
   const skew = 93;
   const shadow = 87;
-  const score = Math.round((blur + brightness + coverage + skew + shadow) / 5);
+  const score = Math.round(
+    (blur + brightness + coverage + skew + shadow) / 5,
+  );
   const messages: string[] = [];
   if (blur < 65) messages.push('사진이 흔들렸습니다. 다시 촬영해주세요.');
-  if (brightness < 60) messages.push('인수증이 너무 어둡습니다. 밝은 곳에서 촬영해주세요.');
-  if (coverage < 60) messages.push('인수증 전체가 화면에 들어오도록 맞춰주세요.');
-  if (pixels < 900000) messages.push('글자가 너무 작습니다. 조금 더 가까이 촬영해주세요.');
+  if (brightness < 60) {
+    messages.push('인수증이 너무 어둡습니다. 밝은 곳에서 촬영해주세요.');
+  }
+  if (coverage < 60) {
+    messages.push('인수증 전체가 화면에 들어오도록 맞춰주세요.');
+  }
+  if (pixels < 900000) {
+    messages.push('글자가 너무 작습니다. 조금 더 가까이 촬영해주세요.');
+  }
   return {
     score,
     blur,
@@ -158,73 +309,354 @@ export function inspectCaptureQuality(asset: ImageAssetInfo): CaptureQuality {
   };
 }
 
-export function parseReceiptText(rawText: string, quality: CaptureQuality): OcrPipelineResult {
+export function parseReceiptText(
+  rawText: string,
+  quality: CaptureQuality,
+): OcrPipelineResult {
   const started = Date.now();
   const text = rawText.replace(/[ \t]+/g, ' ').trim();
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-
-  // 라벨→필드 매핑은 app/ocr 의 정규화 백본에 위임한다.
-  // (별칭 사전 + 퍼지 매칭 + 무손실 unmapped 보존)
-  const { fields: mapped, unmapped } = normalizeReceipt(lines, DEFAULT_FIELD_REGISTRY);
-
-  // 값 후처리(시간/전화/날짜 정규화·대안값·신뢰도)는 기존 로직을 그대로 유지한다.
-  const timeRe = /(?:오전|오후)?\s*\d{1,2}(?::\d{2}|시(?:\s*\d{1,2}분)?)/;
-  const extractTime = (value: string) => value.match(timeRe)?.[0] || value;
-  const timeMatches = candidates(
-    text,
-    /(?:오전|오후)?\s*\d{1,2}(?::\d{2}|시(?:\s*\d{1,2}분)?)(?:까지)?/g,
-  );
-  const phoneMatches = candidates(
-    text,
-    /(?:01[016789][-\s]?\d{3,4}[-\s]?\d{4}|0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4})/g,
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const { fields: mapped, unmapped } = normalizeReceipt(
+    lines,
+    DEFAULT_FIELD_REGISTRY,
   );
 
-  const normalizedDate = (
-    mapped.deliveryDate?.match(/20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2}/)?.[0] ||
-    text.match(/20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2}/)?.[0] ||
-    ''
-  ).replace(/[./]/g, '-');
-  const strictTime = mapped.strictTime ? normalizeTime(extractTime(mapped.strictTime)) : '';
-  const eventTime = mapped.eventTime ? normalizeTime(extractTime(mapped.eventTime)) : '';
-  const phone = normalizePhone(mapped.recipientTel || phoneMatches[0] || '');
-  const venue = mapped.venueName || '';
-  const address = mapped.deliveryAddress || '';
-  const recipient = (mapped.recipientName || '').replace(/\s*(실장|팀장|담당자)$/, ' $1');
+  const orderNumberSource =
+    findLabeledValue(lines, ['주문번호', '주문 번호', '주문서 No', 'NO']) ||
+    firstMatchingLine(lines, (line) =>
+      /(?:주문|NO|No).*20\d{4}[-\w]+/i.test(line),
+    );
   const orderNumber =
-    mapped.orderNumber?.match(/[A-Z]{1,5}[-\d]{5,}/i)?.[0] || mapped.orderNumber || '';
-  const memo = mapped.memo || '';
+    orderNumberSource?.value.match(/[A-Z0-9][A-Z0-9\-_]{5,}/i)?.[0] ||
+    mapped.orderNumber ||
+    '';
 
-  const logicalTimeBonus =
-    strictTime && eventTime && strictTime < eventTime ? 8 : strictTime && eventTime ? -18 : 0;
+  const orderingVendor = findLabeledValue(lines, [
+    '발주화원',
+    '발주처',
+    '발주회원',
+  ]);
+  const fulfillingVendor = findLabeledValue(lines, [
+    '배송화원',
+    '수주화원',
+    '수주회원',
+  ]);
+  const orderingVendorTel = validatedPhoneCandidate(
+    findLabeledValue(lines, ['발주화원 전화', '발주처 전화', '발주 전화']),
+  );
+  const fulfillingVendorTel = validatedPhoneCandidate(
+    findLabeledValue(lines, ['배송화원 전화', '수주화원 전화', '배송 전화']),
+  );
 
-  const fields = [
-    field('deliveryDate', normalizedDate, mapped.deliveryDate ? 94 : 70, mapped.deliveryDate || ''),
+  const productSource =
+    findLabeledValue(lines, ['상품명', '배송상품', '품명', '상품']) ||
+    firstMatchingLine(lines, (line) =>
+      /(?:축하|근조).*(?:화환|3단)|화환.*(?:축하|근조|3단)/.test(line),
+    );
+  const quantitySource =
+    findLabeledValue(lines, ['수량', '개수', '갯수']) ||
+    (productSource && /\d+\s*개/.test(productSource.value)
+      ? productSource
+      : undefined);
+  const ribbonSource =
+    findLabeledValue(lines, [
+      '리본문구',
+      '리본 문구',
+      '리본메세지',
+      '리본메시지',
+      '경조사어',
+    ]) ||
+    firstMatchingLine(lines, (line) =>
+      /삼가.*(?:명복|조의)|축하.*(?:결혼|개업)|부활/.test(line),
+    );
+
+  const deliveryDate = normalizeDate(
+    mapped.deliveryDate || text,
+  );
+  const range = text.match(
+    /(\d{1,2}:\d{2})\s*[~～\-]\s*(\d{1,2})\s*:?\s*(\d{2})/,
+  );
+  const deliveryWindowStart = range ? normalizeTime(range[1]) : '';
+  const deliveryWindowEnd = range
+    ? normalizeTime(`${range[2]}:${range[3]}`)
+    : '';
+
+  const strictSource = findLabeledValue(lines, [
+    '시간엄수',
+    '엄수시간',
+    '배달 엄수',
+    '까지 배송',
+  ]);
+  const eventSource =
+    findLabeledValue(lines, ['예식 시간', '예식시간', '예식', '본식', '행사시간']) ||
+    firstMatchingLine(lines, (line) =>
+      /\(\s*\d{1,2}시\s*\d{0,2}분?\s*식\s*\)/.test(line),
+    );
+  const strictTime = strictSource
+    ? normalizeTime(strictSource.value)
+    : '';
+  const eventTime = eventSource ? normalizeTime(eventSource.value) : '';
+
+  const venueSource = findLabeledValue(lines, [
+    '업체명',
+    '상호명',
+    '예식장',
+    '웨딩홀',
+    '배송처',
+  ]);
+  const addressSource =
+    findLabeledValue(lines, ['배송주소', '배달주소', '배송지', '배달장소', '주소']) ||
+    firstMatchingLine(lines, (line) =>
+      /(?:서울|경기)\s+[\p{Script=Hangul}\d\- ]+(?:구|시|군)\s+/u.test(line),
+    );
+  const recipientSource = findLabeledValue(lines, [
+    '받는분',
+    '받는 분',
+    '수령인',
+    '인수자',
+  ]);
+  const recipientName = safeRecipientName(recipientSource?.value || '');
+  const recipientTelSource = validatedPhoneCandidate(
+    findLabeledValue(lines, [
+      '수령인 전화',
+      '인수자 전화',
+      '받는분 전화',
+      '받는 분 전화',
+      '수령자 연락처',
+      '인수자 연락처',
+      '핸드폰',
+    ]),
+  );
+  const phoneAlternatives = allMatches(text, PHONE_PATTERN)
+    .map(normalizePhone)
+    .filter((phone) => VALID_PHONE.test(phone));
+  const memoSource = findLabeledValue(lines, [
+    '요청사항',
+    '요구사항',
+    '특이사항',
+    '메모',
+    '주의',
+    '비고',
+  ]);
+  const memo =
+    memoSource && !allMatches(memoSource.value, PHONE_PATTERN).length
+      ? memoSource.value
+      : '';
+
+  const fields: OcrFieldResult[] = [
+    field(
+      'orderNumber',
+      orderNumber,
+      orderNumber ? 90 : 0,
+      orderNumberSource?.sourceText || mapped.orderNumber || '',
+      [],
+      {
+        sourceLineIds: orderNumberSource?.sourceLineIds,
+        extractionMethod: orderNumber ? 'pattern' : undefined,
+      },
+    ),
+    field(
+      'orderingVendorName',
+      orderingVendor?.value || '',
+      orderingVendor ? 78 : 0,
+      orderingVendor?.sourceText || '',
+      [],
+      {
+        sourceLineIds: orderingVendor?.sourceLineIds,
+        extractionMethod: orderingVendor ? 'label' : undefined,
+        forceReview: true,
+      },
+    ),
+    field(
+      'orderingVendorTel',
+      orderingVendorTel?.value || '',
+      orderingVendorTel ? 90 : 0,
+      orderingVendorTel?.sourceText || '',
+      [],
+      {
+        sourceLineIds: orderingVendorTel?.sourceLineIds,
+        extractionMethod: orderingVendorTel ? 'label' : undefined,
+      },
+    ),
+    field(
+      'fulfillingVendorName',
+      fulfillingVendor?.value || '',
+      fulfillingVendor ? 78 : 0,
+      fulfillingVendor?.sourceText || '',
+      [],
+      {
+        sourceLineIds: fulfillingVendor?.sourceLineIds,
+        extractionMethod: fulfillingVendor ? 'label' : undefined,
+        forceReview: true,
+      },
+    ),
+    field(
+      'fulfillingVendorTel',
+      fulfillingVendorTel?.value || '',
+      fulfillingVendorTel ? 90 : 0,
+      fulfillingVendorTel?.sourceText || '',
+      [],
+      {
+        sourceLineIds: fulfillingVendorTel?.sourceLineIds,
+        extractionMethod: fulfillingVendorTel ? 'label' : undefined,
+      },
+    ),
+    field(
+      'productName',
+      productSource?.value || '',
+      productSource ? 82 : 0,
+      productSource?.sourceText || '',
+      [],
+      {
+        sourceLineIds: productSource?.sourceLineIds,
+        extractionMethod: productSource ? 'pattern' : undefined,
+        forceReview: true,
+      },
+    ),
+    field(
+      'productQuantity',
+      normalizeQuantity(quantitySource?.value || ''),
+      quantitySource ? 78 : 0,
+      quantitySource?.sourceText || '',
+      [],
+      {
+        sourceLineIds: quantitySource?.sourceLineIds,
+        extractionMethod: quantitySource ? 'pattern' : undefined,
+        forceReview: true,
+      },
+    ),
+    field(
+      'ribbonText',
+      ribbonSource?.value || '',
+      ribbonSource ? 76 : 0,
+      ribbonSource?.sourceText || '',
+      [],
+      {
+        sourceLineIds: ribbonSource?.sourceLineIds,
+        extractionMethod: ribbonSource ? 'pattern' : undefined,
+        forceReview: true,
+      },
+    ),
+    field(
+      'deliveryDate',
+      deliveryDate,
+      deliveryDate ? 92 : 0,
+      mapped.deliveryDate || '',
+      [],
+      {
+        extractionMethod: deliveryDate ? 'pattern' : undefined,
+        forceReview: !mapped.deliveryDate,
+      },
+    ),
+    field(
+      'deliveryWindowStart',
+      deliveryWindowStart,
+      deliveryWindowStart ? 88 : 0,
+      range?.[0] || '',
+      [],
+      {
+        extractionMethod: deliveryWindowStart ? 'pattern' : undefined,
+        forceReview: true,
+      },
+    ),
+    field(
+      'deliveryWindowEnd',
+      deliveryWindowEnd,
+      deliveryWindowEnd ? 88 : 0,
+      range?.[0] || '',
+      [],
+      {
+        extractionMethod: deliveryWindowEnd ? 'pattern' : undefined,
+        forceReview: true,
+      },
+    ),
     field(
       'strictTime',
       strictTime,
-      Math.max(45, 89 + logicalTimeBonus),
-      mapped.strictTime || '',
-      timeMatches.map(normalizeTime).filter((value) => value !== strictTime),
+      strictTime ? 86 : 0,
+      strictSource?.sourceText || '',
+      [],
+      {
+        sourceLineIds: strictSource?.sourceLineIds,
+        extractionMethod: strictTime ? 'label' : undefined,
+        forceReview: true,
+      },
     ),
     field(
       'eventTime',
       eventTime,
-      Math.max(45, 91 + logicalTimeBonus),
-      mapped.eventTime || '',
-      timeMatches.map(normalizeTime).filter((value) => value !== eventTime),
+      eventTime ? 86 : 0,
+      eventSource?.sourceText || '',
+      [],
+      {
+        sourceLineIds: eventSource?.sourceLineIds,
+        extractionMethod: eventTime ? 'label' : undefined,
+        forceReview: true,
+      },
     ),
-    field('venueName', venue, mapped.venueName ? 91 : 48, mapped.venueName || ''),
-    field('deliveryAddress', address, mapped.deliveryAddress ? 88 : 42, mapped.deliveryAddress || ''),
-    field('recipientName', recipient, mapped.recipientName ? 82 : 40, mapped.recipientName || ''),
+    field(
+      'venueName',
+      venueSource?.value || '',
+      venueSource ? 80 : 0,
+      venueSource?.sourceText || '',
+      [],
+      {
+        sourceLineIds: venueSource?.sourceLineIds,
+        extractionMethod: venueSource ? 'label' : undefined,
+        forceReview: true,
+      },
+    ),
+    field(
+      'deliveryAddress',
+      addressSource?.value || '',
+      addressSource ? 84 : 0,
+      addressSource?.sourceText || '',
+      [],
+      {
+        sourceLineIds: addressSource?.sourceLineIds,
+        extractionMethod: addressSource ? 'pattern' : undefined,
+        forceReview: true,
+      },
+    ),
+    field(
+      'recipientName',
+      recipientName,
+      recipientName ? 82 : 0,
+      recipientSource?.sourceText || '',
+      [],
+      {
+        sourceLineIds: recipientSource?.sourceLineIds,
+        extractionMethod: recipientName ? 'label' : undefined,
+        forceReview: true,
+      },
+    ),
     field(
       'recipientTel',
-      phone,
-      mapped.recipientTel ? 96 : 72,
-      mapped.recipientTel || '',
-      phoneMatches.map(normalizePhone),
+      recipientTelSource?.value || '',
+      recipientTelSource ? 90 : 0,
+      recipientTelSource?.sourceText || '',
+      phoneAlternatives,
+      {
+        sourceLineIds: recipientTelSource?.sourceLineIds,
+        extractionMethod: recipientTelSource ? 'label' : undefined,
+        forceReview: true,
+      },
     ),
-    field('orderNumber', orderNumber, mapped.orderNumber ? 93 : 50, mapped.orderNumber || ''),
-    field('memo', memo, mapped.memo ? 86 : 45, mapped.memo || ''),
+    field(
+      'memo',
+      memo,
+      memo ? 78 : 0,
+      memoSource?.sourceText || '',
+      [],
+      {
+        sourceLineIds: memoSource?.sourceLineIds,
+        extractionMethod: memo ? 'label' : undefined,
+        forceReview: true,
+      },
+    ),
   ];
 
   const requiredFields = fields.filter((item) => item.required);
@@ -233,13 +665,13 @@ export function parseReceiptText(rawText: string, quality: CaptureQuality): OcrP
       Math.max(requiredFields.length, 1),
   );
   return {
-    engine: documentConfidence >= 72 ? 'mlkit-demo' : 'cloud-fallback-demo',
+    engine: 'mlkit-demo',
     rawText: text,
     fields,
     documentConfidence,
     quality,
-    processingMs: Date.now() - started + 860,
-    variantsCompared: 6,
+    processingMs: Date.now() - started,
+    variantsCompared: 1,
     unmapped,
   };
 }
@@ -251,7 +683,6 @@ export async function runHybridOcr(
 ): Promise<OcrPipelineResult> {
   const quality = inspectCaptureQuality(asset);
   if (rawText?.trim()) {
-    await new Promise((resolve) => setTimeout(resolve, 900));
     return parseReceiptText(rawText, quality);
   }
   if (!asset.uri?.trim()) {
@@ -259,22 +690,20 @@ export async function runHybridOcr(
   }
 
   try {
-    const recognize = recognizeImage || (async (imageUri: string) => {
-      const { recognizeReceiptWithMlKit } = await import('./recognizer');
-      return recognizeReceiptWithMlKit(imageUri);
-    });
+    const recognize =
+      recognizeImage ||
+      (async (imageUri: string) => {
+        const { recognizeReceiptWithMlKit } = await import('./recognizer');
+        return recognizeReceiptWithMlKit(imageUri);
+      });
     const recognized = await recognize(asset.uri);
-    if (!recognized.fullText.trim()) {
-      throw new OcrNoTextDetectedError();
-    }
-
+    if (!recognized.fullText.trim()) throw new OcrNoTextDetectedError();
     const parsed = parseReceiptText(recognized.fullText, quality);
     return {
       ...parsed,
       engine: 'mlkit',
       recognizedLines: recognized.lines,
       processingMs: recognized.processingMs,
-      variantsCompared: 1,
     };
   } catch (error) {
     if (error instanceof OcrNoTextDetectedError) throw error;

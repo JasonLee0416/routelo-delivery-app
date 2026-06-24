@@ -967,14 +967,23 @@ function DeliveryDetailSheet({
 type ScanStage = 'capture' | 'quality' | 'processing' | 'review';
 
 const OCR_FIELD_ICONS: Record<OcrFieldKey, keyof typeof Ionicons.glyphMap> = {
+  orderNumber: 'barcode-outline',
+  orderingVendorName: 'storefront-outline',
+  orderingVendorTel: 'call-outline',
+  fulfillingVendorName: 'flower-outline',
+  fulfillingVendorTel: 'call-outline',
+  productName: 'gift-outline',
+  productQuantity: 'layers-outline',
+  ribbonText: 'ribbon-outline',
   deliveryDate: 'calendar-outline',
+  deliveryWindowStart: 'play-outline',
+  deliveryWindowEnd: 'stop-outline',
   strictTime: 'alarm-outline',
   eventTime: 'time-outline',
   venueName: 'business-outline',
   deliveryAddress: 'location-outline',
   recipientName: 'person-outline',
   recipientTel: 'call-outline',
-  orderNumber: 'barcode-outline',
   memo: 'document-text-outline',
 };
 

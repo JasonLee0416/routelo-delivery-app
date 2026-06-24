@@ -1,24 +1,10 @@
+import type { LegacyDelivery } from './domain';
+
 export type DeliveryStatus = 'pending' | 'completed';
 
-export type Delivery = {
-  id: string;
-  orderVendor: string;
-  orderVendorTel: string;
-  deliveryVendor: string;
-  deliveryVendorTel: string;
-  productName: string;
-  productQuantity: number;
-  eventTime: string;
-  deliveryDt: string;
-  deliveryAddress: string;
-  customerRequests: string;
-  recipientTel: string;
-  status: DeliveryStatus;
-  distanceKm: number;
-  fee: number;
-  latitude: number;
-  longitude: number;
-};
+// Compatibility shape for existing screens. Canonical persistence uses
+// DeliveryOrder from app/domain and is converted through explicit adapters.
+export type Delivery = LegacyDelivery;
 
 export type FeeSettings = {
   districtFees: Record<string, number>;
@@ -59,23 +45,36 @@ export type OcrForm = {
 };
 
 export type OcrFieldKey =
+  | 'orderNumber'
+  | 'orderingVendorName'
+  | 'orderingVendorTel'
+  | 'fulfillingVendorName'
+  | 'fulfillingVendorTel'
+  | 'productName'
+  | 'productQuantity'
+  | 'ribbonText'
   | 'deliveryDate'
+  | 'deliveryWindowStart'
+  | 'deliveryWindowEnd'
   | 'strictTime'
   | 'eventTime'
   | 'venueName'
   | 'deliveryAddress'
   | 'recipientName'
   | 'recipientTel'
-  | 'orderNumber'
   | 'memo';
 
 export type OcrFieldResult = {
   key: OcrFieldKey;
   label: string;
   value: string;
+  rawValue?: string;
   confidence: number;
   required: boolean;
   sourceText: string;
+  sourceLineIds?: string[];
+  extractionMethod?: 'label' | 'layout' | 'pattern' | 'manual';
+  validationErrors?: string[];
   alternatives: string[];
   status: 'confirmed' | 'review' | 'warning' | 'missing';
 };
