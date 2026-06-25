@@ -68,3 +68,56 @@ export function compareCalendarItems(
   return leftTime.localeCompare(rightTime);
 }
 
+export type CalendarRisk = {
+  conflict: boolean;
+  late: boolean;
+};
+
+const timestamp = (value?: string) => {
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+export function evaluateCalendarRisks(items: CalendarDeliveryItem[]) {
+  const risks = new Map<string, CalendarRisk>(
+    items.map((item) => [
+      item.id,
+      {
+        conflict: false,
+        late: Boolean(
+          timestamp(item.plannedArrivalAt) !== undefined &&
+            timestamp(
+              item.deadlineAt || item.eventAt || item.startAt,
+            ) !== undefined &&
+            timestamp(item.plannedArrivalAt)! >
+              timestamp(item.deadlineAt || item.eventAt || item.startAt)!,
+        ),
+      },
+    ]),
+  );
+
+  for (let leftIndex = 0; leftIndex < items.length; leftIndex += 1) {
+    const left = items[leftIndex];
+    const leftStart = timestamp(left.startAt);
+    const leftEnd = timestamp(left.endAt);
+    if (leftStart === undefined || leftEnd === undefined) continue;
+
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < items.length;
+      rightIndex += 1
+    ) {
+      const right = items[rightIndex];
+      const rightStart = timestamp(right.startAt);
+      const rightEnd = timestamp(right.endAt);
+      if (rightStart === undefined || rightEnd === undefined) continue;
+      if (leftStart < rightEnd && rightStart < leftEnd) {
+        risks.get(left.id)!.conflict = true;
+        risks.get(right.id)!.conflict = true;
+      }
+    }
+  }
+
+  return risks;
+}

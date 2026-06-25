@@ -1,5 +1,6 @@
 import {
   compareCalendarItems,
+  evaluateCalendarRisks,
   isIsoServiceDate,
   legacyDeliveryToOrder,
   toCalendarDeliveryItem,
@@ -80,5 +81,45 @@ describe('canonical delivery domain', () => {
       }),
     ).toBeLessThan(0);
   });
-});
 
+  it('marks only explicit overlaps and late planned arrivals', () => {
+    const base = {
+      id: 'a',
+      deliveryOrderId: 'a',
+      date: '2026-06-23',
+      startAt: '2026-06-23T10:00:00+09:00',
+      endAt: '2026-06-23T11:00:00+09:00',
+      deadlineAt: '2026-06-23T10:30:00+09:00',
+      plannedArrivalAt: '2026-06-23T10:40:00+09:00',
+      title: 'A',
+      address: '',
+      status: 'pending' as const,
+      priority: 'normal' as const,
+      timePrecision: 'exact' as const,
+    };
+    const risks = evaluateCalendarRisks([
+      base,
+      {
+        ...base,
+        id: 'b',
+        deliveryOrderId: 'b',
+        startAt: '2026-06-23T10:45:00+09:00',
+        endAt: '2026-06-23T11:30:00+09:00',
+        plannedArrivalAt: '2026-06-23T10:20:00+09:00',
+      },
+      {
+        ...base,
+        id: 'unknown',
+        deliveryOrderId: 'unknown',
+        startAt: undefined,
+        endAt: undefined,
+        deadlineAt: undefined,
+        plannedArrivalAt: undefined,
+      },
+    ]);
+
+    expect(risks.get('a')).toEqual({ conflict: true, late: true });
+    expect(risks.get('b')).toEqual({ conflict: true, late: false });
+    expect(risks.get('unknown')).toEqual({ conflict: false, late: false });
+  });
+});

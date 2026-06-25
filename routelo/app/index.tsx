@@ -28,6 +28,7 @@ import { AccountState, EnergyType } from './account';
 import { accountRepository } from './account/native';
 import {
   DeliveryOrder,
+  evaluateCalendarRisks,
   legacyDeliveryToOrder,
   orderToLegacyDelivery,
   toCalendarDeliveryItem,
@@ -789,6 +790,7 @@ function CalendarScreen({
   }, [items]);
   const selectedDate = formatDateKey(cursor);
   const selectedItems = byDate.get(selectedDate) || [];
+  const calendarRisks = useMemo(() => evaluateCalendarRisks(items), [items]);
   const dailySummaries = useMemo(
     () => summarizeDailyProfit(orders, fuelLogs, settings),
     [fuelLogs, orders, settings],
@@ -882,7 +884,10 @@ function CalendarScreen({
             const outside =
               mode === 'month' && date.getMonth() !== cursor.getMonth();
             const urgent = (byDate.get(key) || []).some(
-              (item) => item.priority !== 'normal',
+              (item) =>
+                item.priority !== 'normal' ||
+                calendarRisks.get(item.id)?.conflict ||
+                calendarRisks.get(item.id)?.late,
             );
             return (
               <Pressable
@@ -972,6 +977,7 @@ function CalendarScreen({
         </View>
       ) : (
         selectedItems.map((item) => {
+          const risk = calendarRisks.get(item.id);
           const order = orders.find(
             (entry) => entry.id === item.deliveryOrderId,
           );
@@ -983,7 +989,11 @@ function CalendarScreen({
           return (
             <Pressable
               key={item.id}
-              style={styles.calendarAgendaCard}
+              style={[
+                styles.calendarAgendaCard,
+                risk?.conflict && styles.calendarAgendaCardConflict,
+                risk?.late && styles.calendarAgendaCardLate,
+              ]}
               onPress={() => delivery && onDeliveryPress(delivery)}
             >
               <View style={styles.calendarTimeColumn}>
@@ -1007,6 +1017,12 @@ function CalendarScreen({
                 <Text style={styles.calendarAgendaTitle}>{item.title}</Text>
                 <Text style={styles.calendarAgendaAddress}>{item.address}</Text>
                 <View style={styles.calendarMetaRow}>
+                  {risk?.conflict && (
+                    <Text style={styles.calendarConflictText}>일정 충돌</Text>
+                  )}
+                  {risk?.late && (
+                    <Text style={styles.calendarLateText}>도착 지연 위험</Text>
+                  )}
                   {!!item.deadlineAt && (
                     <Text style={styles.calendarUrgentText}>
                       엄수 {timeLabel(item.deadlineAt)}
@@ -2602,6 +2618,13 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 10,
   },
+  calendarAgendaCardConflict: {
+    borderColor: C.warning,
+    backgroundColor: C.warningBg,
+  },
+  calendarAgendaCardLate: {
+    borderColor: C.danger,
+  },
   calendarTimeColumn: { width: 86, paddingRight: 12 },
   calendarAgendaTime: { fontSize: 16, color: C.primary, fontWeight: '900' },
   calendarPrecision: {
@@ -2620,6 +2643,8 @@ const styles = StyleSheet.create({
   calendarMetaRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   calendarUrgentText: { color: C.danger, fontSize: 12, fontWeight: '800' },
   calendarEventText: { color: C.warning, fontSize: 12, fontWeight: '800' },
+  calendarConflictText: { color: C.warning, fontSize: 12, fontWeight: '900' },
+  calendarLateText: { color: C.danger, fontSize: 12, fontWeight: '900' },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
