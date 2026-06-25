@@ -1,4 +1,5 @@
-import { Delivery, FeeSettings } from '../models';
+import { Delivery } from '../models';
+import { RouteloSettings } from '../settings';
 
 const toRadians = (value: number) => (value * Math.PI) / 180;
 
@@ -46,14 +47,22 @@ export function optimizeByNearestNeighbor(
   return result;
 }
 
-export function calculateFeeByAddress(address: string, settings: FeeSettings) {
+const districtFeeEntries = (settings: RouteloSettings) =>
+  Object.entries(settings.fees.districtFees).flatMap(([, fees]) =>
+    Object.entries(fees),
+  );
+
+export function calculateFeeByAddress(address: string, settings: RouteloSettings) {
   const district = findDistrictByAddress(address, settings);
-  return district ? settings.districtFees[district] : 15000;
+  const configuredFee = districtFeeEntries(settings).find(
+    ([name]) => name === district,
+  )?.[1];
+  return configuredFee ?? settings.fees.defaultFee;
 }
 
-export function findDistrictByAddress(address: string, settings: FeeSettings) {
+export function findDistrictByAddress(address: string, settings: RouteloSettings) {
   const compactAddress = address.replace(/\s/g, '');
-  return Object.keys(settings.districtFees).find((name) =>
+  return districtFeeEntries(settings).map(([name]) => name).find((name) =>
     compactAddress.includes(name.replace(/\s/g, '')),
   );
 }

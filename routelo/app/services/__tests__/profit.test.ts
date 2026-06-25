@@ -1,17 +1,25 @@
 import { DeliveryOrder } from '../../domain';
-import { FeeSettings, FuelLog } from '../../models';
+import { FuelLog } from '../../models';
+import { DEFAULT_ROUTELO_SETTINGS, RouteloSettings } from '../../settings';
 import { calculateFeeByAddress, findDistrictByAddress } from '../maps';
 import { summarizeDailyProfit } from '../profit';
 
-const settings: FeeSettings = {
-  districtFees: {
-    강남구: 18000,
-    수원시: 24000,
+const settings: RouteloSettings = {
+  ...DEFAULT_ROUTELO_SETTINGS,
+  fees: {
+    ...DEFAULT_ROUTELO_SETTINGS.fees,
+    districtFees: {
+      ...DEFAULT_ROUTELO_SETTINGS.fees.districtFees,
+      Seoul: {
+        ...DEFAULT_ROUTELO_SETTINGS.fees.districtFees.Seoul,
+        강남구: 18000,
+      },
+      Gyeonggi: {
+        ...DEFAULT_ROUTELO_SETTINGS.fees.districtFees.Gyeonggi,
+        수원시: 24000,
+      },
+    },
   },
-  fuelEfficiency: 12.4,
-  themeMode: 'light',
-  vehicleModel: '테스트 차량',
-  fuelTankCapacity: 60,
 };
 
 const order = (

@@ -1,5 +1,6 @@
 import { DeliveryOrder } from '../domain';
-import { FeeSettings, FuelLog } from '../models';
+import { FuelLog } from '../models';
+import { RouteloSettings } from '../settings';
 import { calculateFeeByAddress } from './maps';
 
 export type DailyProfitSummary = {
@@ -19,7 +20,7 @@ const emptySummary = (): DailyProfitSummary => ({
 export function summarizeDailyProfit(
   orders: DeliveryOrder[],
   fuelLogs: FuelLog[],
-  settings: FeeSettings,
+  settings: RouteloSettings,
 ): Map<string, DailyProfitSummary> {
   const grouped = new Map<string, DailyProfitSummary>();
 

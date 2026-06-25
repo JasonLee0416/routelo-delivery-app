@@ -34,7 +34,6 @@ import {
 } from './domain';
 import {
   Delivery,
-  FeeSettings,
   FuelLog,
   OcrFieldKey,
   OcrFieldResult,
@@ -47,7 +46,8 @@ import {
   optimizeByNearestNeighbor,
 } from './services/maps';
 import { summarizeDailyProfit } from './services/profit';
-import { DEFAULT_FEE_SETTINGS, GYEONGGI_DISTRICTS, SEOUL_DISTRICTS } from './settings/districts';
+import { DEFAULT_ROUTELO_SETTINGS, RouteloSettings } from './settings';
+import { GYEONGGI_DISTRICTS, SEOUL_DISTRICTS } from './settings/districts';
 import { settingsRepository } from './settings/native';
 import {
   DEMO_RECEIPT_TEXT,
@@ -749,7 +749,7 @@ function CalendarScreen({
 }: {
   orders: DeliveryOrder[];
   fuelLogs: FuelLog[];
-  settings: FeeSettings;
+  settings: RouteloSettings;
   onDeliveryPress: (delivery: Delivery) => void;
   onNotifications: () => void;
 }) {
@@ -1154,16 +1154,20 @@ function SettingsScreen({
   onEditAccount,
 }: {
   account?: AccountState;
-  settings: FeeSettings;
-  onSettingsChange: (settings: FeeSettings) => void;
+  settings: RouteloSettings;
+  onSettingsChange: (settings: RouteloSettings) => void;
   onEditAccount: () => void;
 }) {
-  const [deadlineAlerts, setDeadlineAlerts] = useState(true);
-  const [eventAlerts, setEventAlerts] = useState(true);
-  const [routeAlerts, setRouteAlerts] = useState(true);
-  const [avoidTolls, setAvoidTolls] = useState(false);
+  const [districtQuery, setDistrictQuery] = useState('');
+  const normalizedQuery = districtQuery.trim().replace(/\s/g, '');
+  const visibleSeoul = SEOUL_DISTRICTS.filter((district) =>
+    district.replace(/\s/g, '').includes(normalizedQuery),
+  );
+  const visibleGyeonggi = GYEONGGI_DISTRICTS.filter((district) =>
+    district.replace(/\s/g, '').includes(normalizedQuery),
+  );
 
-  const updateSettings = (next: FeeSettings) => {
+  const updateSettings = (next: RouteloSettings) => {
     onSettingsChange(next);
     settingsRepository.save(next).catch(() => undefined);
   };
@@ -1172,9 +1176,23 @@ function SettingsScreen({
     const numeric = Number(value.replace(/[^\d]/g, ''));
     updateSettings({
       ...settings,
-      districtFees: {
-        ...settings.districtFees,
-        [district]: Number.isFinite(numeric) ? numeric : 0,
+      fees: {
+        ...settings.fees,
+        districtFees: {
+          ...settings.fees.districtFees,
+          Seoul: {
+            ...settings.fees.districtFees.Seoul,
+            ...(SEOUL_DISTRICTS.includes(district as never)
+              ? { [district]: Number.isFinite(numeric) ? numeric : 0 }
+              : {}),
+          },
+          Gyeonggi: {
+            ...settings.fees.districtFees.Gyeonggi,
+            ...(GYEONGGI_DISTRICTS.includes(district as never)
+              ? { [district]: Number.isFinite(numeric) ? numeric : 0 }
+              : {}),
+          },
+        },
       },
     });
   };
@@ -1210,22 +1228,64 @@ function SettingsScreen({
         <SettingRow
           icon="alarm-outline"
           title="엄수 마감 알림"
-          caption="마감 30분·15분 전에 알림"
-          trailing={<Switch value={deadlineAlerts} onValueChange={setDeadlineAlerts} trackColor={{ true: C.primary }} />}
+          caption={`${settings.notifications.strictDeadlineLeadMinutes.join('분 · ')}분 전에 알림`}
+          trailing={
+            <Switch
+              value={settings.notifications.strictDeadlineEnabled}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  ...settings,
+                  notifications: {
+                    ...settings.notifications,
+                    strictDeadlineEnabled: enabled,
+                  },
+                })
+              }
+              trackColor={{ true: C.primary }}
+            />
+          }
         />
         <View style={styles.divider} />
         <SettingRow
           icon="calendar-outline"
           title="예식 시간 알림"
           caption="예식 배송을 최우선으로 경고"
-          trailing={<Switch value={eventAlerts} onValueChange={setEventAlerts} trackColor={{ true: C.primary }} />}
+          trailing={
+            <Switch
+              value={settings.notifications.eventTimeEnabled}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  ...settings,
+                  notifications: {
+                    ...settings.notifications,
+                    eventTimeEnabled: enabled,
+                  },
+                })
+              }
+              trackColor={{ true: C.primary }}
+            />
+          }
         />
         <View style={styles.divider} />
         <SettingRow
           icon="warning-outline"
           title="경로 변경·지연 알림"
           caption="도착 지연 가능성이 있을 때 알림"
-          trailing={<Switch value={routeAlerts} onValueChange={setRouteAlerts} trackColor={{ true: C.primary }} />}
+          trailing={
+            <Switch
+              value={settings.notifications.delayRiskEnabled}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  ...settings,
+                  notifications: {
+                    ...settings.notifications,
+                    delayRiskEnabled: enabled,
+                  },
+                })
+              }
+              trackColor={{ true: C.primary }}
+            />
+          }
         />
       </View>
 
@@ -1234,13 +1294,85 @@ function SettingsScreen({
         <SettingRow icon="car-outline" title="이동 수단" caption="업무용 차량 · 자동차" />
         <View style={styles.divider} />
         <SettingRow
-          icon="cash-outline"
-          title="유료도로 제외"
-          caption="통행료가 발생하는 경로를 피합니다"
-          trailing={<Switch value={avoidTolls} onValueChange={setAvoidTolls} trackColor={{ true: C.primary }} />}
+          icon="map-outline"
+          title="Google 지도 연결"
+          caption="경로 실행 시 Google 지도로 넘깁니다"
+          trailing={
+            <Switch
+              value={settings.route.googleMapsHandoffEnabled}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  ...settings,
+                  route: {
+                    ...settings.route,
+                    googleMapsHandoffEnabled: enabled,
+                  },
+                })
+              }
+              trackColor={{ true: C.primary }}
+            />
+          }
         />
         <View style={styles.divider} />
-        <SettingRow icon="map-outline" title="지도 앱" caption="Google 지도" />
+        <SettingRow
+          icon="swap-vertical-outline"
+          title="수동 순서 변경"
+          caption="배송 순서를 직접 조정할 수 있습니다"
+          trailing={
+            <Switch
+              value={settings.route.allowManualReorder}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  ...settings,
+                  route: { ...settings.route, allowManualReorder: enabled },
+                })
+              }
+              trackColor={{ true: C.primary }}
+            />
+          }
+        />
+      </View>
+
+      <SectionHeader title="개인정보 보호" />
+      <View style={styles.settingsGroup}>
+        <SettingRow
+          icon="image-outline"
+          title="원본 인수증 보관"
+          caption="OCR 검증을 위해 촬영 원본을 로컬에 보관합니다"
+          trailing={
+            <Switch
+              value={settings.privacy.preserveOriginalReceiptImage}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  ...settings,
+                  privacy: {
+                    ...settings.privacy,
+                    preserveOriginalReceiptImage: enabled,
+                  },
+                })
+              }
+              trackColor={{ true: C.primary }}
+            />
+          }
+        />
+        <View style={styles.divider} />
+        <SettingRow
+          icon="call-outline"
+          title="목록에서 전화번호 표시"
+          caption="민감정보 노출을 줄이려면 끄는 것을 권장합니다"
+          trailing={
+            <Switch
+              value={settings.privacy.showFullPhoneInList}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  ...settings,
+                  privacy: { ...settings.privacy, showFullPhoneInList: enabled },
+                })
+              }
+              trackColor={{ true: C.primary }}
+            />
+          }
+        />
       </View>
 
       <SectionHeader title="앱 설정" />
@@ -1248,14 +1380,17 @@ function SettingsScreen({
         <SettingRow
           icon="color-palette-outline"
           title="화면 모드"
-          caption={settings.themeMode === 'dark' ? '다크 모드 사용 중' : '라이트 모드 사용 중'}
+          caption={settings.appearance.themeMode === 'dark' ? '다크 모드 사용 중' : '라이트 모드 사용 중'}
           trailing={
             <Switch
-              value={settings.themeMode === 'dark'}
+              value={settings.appearance.themeMode === 'dark'}
               onValueChange={(enabled) =>
                 updateSettings({
                   ...settings,
-                  themeMode: enabled ? 'dark' : 'light',
+                  appearance: {
+                    ...settings.appearance,
+                    themeMode: enabled ? 'dark' : 'light',
+                  },
                 })
               }
               trackColor={{ true: C.primary }}
@@ -1272,12 +1407,19 @@ function SettingsScreen({
         caption="서울 25개 자치구와 경기도 31개 시군별 금액을 회사 정책에 맞게 설정합니다."
       />
       <View style={styles.districtFeePanel}>
+        <TextInput
+          value={districtQuery}
+          onChangeText={setDistrictQuery}
+          placeholder="지역 검색"
+          placeholderTextColor={C.textMuted}
+          style={styles.districtSearchInput}
+        />
         <Text style={styles.districtFeeGroupTitle}>서울 지역</Text>
-        {SEOUL_DISTRICTS.map((district) => (
+        {visibleSeoul.map((district) => (
           <View key={district} style={styles.districtFeeRow}>
             <Text style={styles.districtFeeName}>{district}</Text>
             <TextInput
-              value={String(settings.districtFees[district] || 0)}
+              value={String(settings.fees.districtFees.Seoul[district] || 0)}
               onChangeText={(value) => updateDistrictFee(district, value)}
               keyboardType="number-pad"
               placeholder="15000"
@@ -1290,11 +1432,11 @@ function SettingsScreen({
         <Text style={[styles.districtFeeGroupTitle, styles.districtFeeGroupSpacing]}>
           경기도 지역
         </Text>
-        {GYEONGGI_DISTRICTS.map((district) => (
+        {visibleGyeonggi.map((district) => (
           <View key={district} style={styles.districtFeeRow}>
             <Text style={styles.districtFeeName}>{district}</Text>
             <TextInput
-              value={String(settings.districtFees[district] || 0)}
+              value={String(settings.fees.districtFees.Gyeonggi[district] || 0)}
               onChangeText={(value) => updateDistrictFee(district, value)}
               keyboardType="number-pad"
               placeholder="15000"
@@ -2169,7 +2311,9 @@ export default function RouteloApp() {
   const [scannerVisible, setScannerVisible] = useState(false);
   const [account, setAccount] = useState<AccountState>();
   const [onboardingVisible, setOnboardingVisible] = useState(false);
-  const [settings, setSettings] = useState<FeeSettings>(DEFAULT_FEE_SETTINGS);
+  const [settings, setSettings] = useState<RouteloSettings>(
+    DEFAULT_ROUTELO_SETTINGS,
+  );
   const [fuelLogs] = useState<FuelLog[]>(SAMPLE_FUEL_LOGS);
 
   useEffect(() => {
@@ -2282,7 +2426,7 @@ export default function RouteloApp() {
     );
   }, [account, activeTab, deliveries, fuelLogs, orders, settings]);
 
-  const darkMode = settings.themeMode === 'dark';
+  const darkMode = settings.appearance.themeMode === 'dark';
 
   return (
     <SafeAreaView
@@ -2864,6 +3008,16 @@ const styles = StyleSheet.create({
     borderColor: C.outline,
     padding: 14,
     marginBottom: 16,
+  },
+  districtSearchInput: {
+    minHeight: 44,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: C.outline,
+    backgroundColor: C.background,
+    color: C.text,
+    paddingHorizontal: 12,
+    marginBottom: 14,
   },
   districtFeeGroupTitle: {
     color: C.navy,
