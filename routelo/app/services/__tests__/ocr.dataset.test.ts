@@ -48,7 +48,7 @@ const compact = (value: string) =>
 const digits = (value: string) => value.replace(/\D/g, '');
 
 describe('repository receipt dataset benchmark', () => {
-  it('parses all native ML Kit results without injecting unsupported values', () => {
+  it('parses the recorded OCR baseline without injecting unsupported values', () => {
     const nativeReport = JSON.parse(
       fs.readFileSync(nativeReportPath, 'utf8'),
     ) as NativeReport;

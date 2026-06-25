@@ -77,7 +77,7 @@ future receipts from similar vendors become easier to process.
 | Nearest-neighbor visit ordering | Prototype |
 | Google Maps navigation handoff | Implemented |
 | Camera/gallery interaction | Implemented |
-| Native ML Kit text recognition | Planned |
+| Shared Android/iOS PP-OCRv5 recognition | Implemented |
 | Road distance and live traffic optimization | Planned |
 | Production database and encryption | Planned |
 | Full delivery CRUD and completion evidence | In progress |

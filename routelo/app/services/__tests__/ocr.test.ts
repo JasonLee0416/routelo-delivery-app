@@ -2,7 +2,7 @@ import {
   DEMO_RECEIPT_TEXT,
   OcrRecognizerUnavailableError,
   parseReceiptText,
-  runHybridOcr,
+  runReceiptOcr,
 } from '../ocr';
 
 const quality = {
@@ -23,7 +23,7 @@ describe('OCR zero-fabrication guard', () => {
     );
 
     await expect(
-      runHybridOcr({
+      runReceiptOcr({
         uri: 'file:///captured-receipt.jpg',
         width: 1440,
         height: 1920,
@@ -38,14 +38,14 @@ describe('OCR zero-fabrication guard', () => {
     expect(result.fields.length).toBeGreaterThan(0);
   });
 
-  it('parses actual ML Kit text returned for a captured image', async () => {
+  it('parses actual PP-OCR text returned for a captured image', async () => {
     const recognizer = jest.fn().mockResolvedValue({
       fullText: DEMO_RECEIPT_TEXT,
       lines: [{ text: '주문번호 FL-20260621-1842' }],
       processingMs: 321,
     });
 
-    const result = await runHybridOcr({
+    const result = await runReceiptOcr({
       uri: 'file:///captured-receipt.jpg',
       width: 1440,
       height: 1920,
@@ -54,7 +54,7 @@ describe('OCR zero-fabrication guard', () => {
     expect(recognizer).toHaveBeenCalledWith(
       'file:///captured-receipt.jpg',
     );
-    expect(result.engine).toBe('mlkit');
+    expect(result.engine).toBe('ppocrv5');
     expect(result.processingMs).toBe(321);
     expect(result.rawText).toContain('FL-20260621-1842');
     expect(result.recognizedLines?.[0].text).toContain('주문번호');

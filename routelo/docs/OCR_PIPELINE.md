@@ -1,5 +1,11 @@
 # RouteLO OCR Pipeline
 
+> Current architecture as of 2026-06-24: RouteLO uses one pinned PP-OCRv5
+> detector and Korean recognizer through the shared ONNX Runtime React Native
+> path on Android and iOS. References to ML Kit below describe the superseded
+> baseline and are retained only for historical benchmark context. The current
+> decision is recorded in `docs/adr/0001-ppocr-single-engine.md`.
+
 ## 1. Recommended architecture
 
 ```text

@@ -39,7 +39,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -49,6 +48,16 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify shared PP-OCR models
+        run: npm run verify:ocr-models
+
+      - name: Export Android application assets
+        run: npx expo export --platform android --output-dir dist-android
+
+      - name: Verify PP-OCR models are bundled
+        run: |
+          node -e "const assets=require('./dist-android/metadata.json').fileMetadata.android.assets; const models=assets.filter(({ext})=>ext==='onnx'); if(models.length<2) process.exit(1); console.log(models)"
 
       - name: Generate Android project
         run: npx expo prebuild --platform android --clean --no-install

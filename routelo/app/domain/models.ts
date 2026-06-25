@@ -90,7 +90,7 @@ export type DeliveryOrder = {
   updatedAt: string;
 };
 
-export type OcrEngine = 'mlkit' | 'ppocrv5' | 'demo';
+export type OcrEngine = 'ppocrv5' | 'fixture';
 
 export type OcrPoint = { x: number; y: number };
 
@@ -192,4 +192,3 @@ export type CalendarDeliveryItem = {
   timePrecision: SchedulePrecision;
   routeSequence?: number;
 };
-
