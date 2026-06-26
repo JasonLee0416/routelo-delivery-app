@@ -136,6 +136,26 @@ const ThemeContext = createContext<ThemeValue | null>(null);
 const useTheme = (): ThemeValue =>
   useContext(ThemeContext) ?? { C: LIGHT, styles: makeStyles(LIGHT) };
 
+// 목록에서의 민감정보 노출 제어(설정 privacy). 증거 보존과 무관하게 "표시"만 가린다.
+type PrivacyValue = {
+  showFullPhoneInList: boolean;
+  showFullAddressInList: boolean;
+};
+
+const PrivacyContext = createContext<PrivacyValue>({
+  showFullPhoneInList: false,
+  showFullAddressInList: true,
+});
+
+const usePrivacy = (): PrivacyValue => useContext(PrivacyContext);
+
+// 목록용 주소 마스킹: 앞 2개 토큰(시/구)만 남기고 이후를 가린다.
+const maskAddressForList = (address: string): string => {
+  const parts = address.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 2) return address;
+  return `${parts.slice(0, 2).join(' ')} ···`;
+};
+
 const formatWon = (value: number) => `${Math.round(value).toLocaleString('ko-KR')}원`;
 
 const tabs: Array<{
@@ -312,6 +332,7 @@ function TimeAlertCard({
   address: string;
 }) {
   const { C, styles } = useTheme();
+  const { showFullAddressInList } = usePrivacy();
   const event = type === 'event';
   return (
     <View style={[styles.timeAlert, event ? styles.eventAlert : styles.deadlineAlert]}>
@@ -333,7 +354,7 @@ function TimeAlertCard({
           </Text>
         </View>
         <Text style={styles.timeAlertAddress} numberOfLines={1}>
-          {address}
+          {showFullAddressInList ? address : maskAddressForList(address)}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
@@ -393,6 +414,7 @@ function CompactDelivery({
   onPress: () => void;
 }) {
   const { C, styles } = useTheme();
+  const { showFullAddressInList } = usePrivacy();
   const priority = priorityOf(delivery);
   return (
     <Pressable style={styles.compactDelivery} onPress={onPress}>
@@ -406,7 +428,9 @@ function CompactDelivery({
         </View>
         <Text style={styles.compactTitle}>{delivery.productName}</Text>
         <Text style={styles.compactAddress} numberOfLines={1}>
-          {delivery.deliveryAddress}
+          {showFullAddressInList
+            ? delivery.deliveryAddress
+            : maskAddressForList(delivery.deliveryAddress)}
         </Text>
         {priority === 'urgent' && (
           <View style={styles.inlineUrgent}>
@@ -509,6 +533,7 @@ function DeliveryCard({
   onPress: () => void;
 }) {
   const { C, styles } = useTheme();
+  const { showFullAddressInList } = usePrivacy();
   const urgent = isEventDelivery(delivery);
   const estimatedArrival = addMinutes(timeOf(delivery.deliveryDt), -18);
   return (
@@ -525,7 +550,11 @@ function DeliveryCard({
         </View>
         <StatusBadge status={delivery.status} />
       </View>
-      <Text style={styles.deliveryAddress}>{delivery.deliveryAddress}</Text>
+      <Text style={styles.deliveryAddress}>
+        {showFullAddressInList
+          ? delivery.deliveryAddress
+          : maskAddressForList(delivery.deliveryAddress)}
+      </Text>
 
       <View style={styles.deliveryTimeGrid}>
         <View style={styles.deliveryTimeCell}>
@@ -803,6 +832,7 @@ function CalendarScreen({
   onNotifications: () => void;
 }) {
   const { C, styles } = useTheme();
+  const { showFullAddressInList } = usePrivacy();
   const today = new Date();
   const [mode, setMode] = useState<CalendarMode>('month');
   const [cursor, setCursor] = useState(
@@ -1064,7 +1094,11 @@ function CalendarScreen({
               </View>
               <View style={styles.calendarAgendaBody}>
                 <Text style={styles.calendarAgendaTitle}>{item.title}</Text>
-                <Text style={styles.calendarAgendaAddress}>{item.address}</Text>
+                <Text style={styles.calendarAgendaAddress}>
+                  {showFullAddressInList
+                    ? item.address
+                    : maskAddressForList(item.address)}
+                </Text>
                 <View style={styles.calendarMetaRow}>
                   {risk?.conflict && (
                     <Text style={styles.calendarConflictText}>일정 충돌</Text>
@@ -2513,6 +2547,12 @@ export default function RouteloApp() {
 
   return (
     <ThemeContext.Provider value={{ C, styles }}>
+    <PrivacyContext.Provider
+      value={{
+        showFullPhoneInList: settings.privacy.showFullPhoneInList,
+        showFullAddressInList: settings.privacy.showFullAddressInList,
+      }}
+    >
     <SafeAreaView
       style={styles.app}
       edges={['top', 'left', 'right']}
@@ -2597,6 +2637,7 @@ export default function RouteloApp() {
         }}
       />
     </SafeAreaView>
+    </PrivacyContext.Provider>
     </ThemeContext.Provider>
   );
 }
