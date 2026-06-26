@@ -1228,6 +1228,10 @@ function SettingsScreen({
 }) {
   const { C, styles } = useTheme();
   const [districtQuery, setDistrictQuery] = useState('');
+  const [openRegions, setOpenRegions] = useState<{
+    Seoul: boolean;
+    Gyeonggi: boolean;
+  }>({ Seoul: false, Gyeonggi: false });
   const normalizedQuery = districtQuery.trim().replace(/\s/g, '');
   const visibleSeoul = SEOUL_DISTRICTS.filter((district) =>
     district.replace(/\s/g, '').includes(normalizedQuery),
@@ -1494,38 +1498,59 @@ function SettingsScreen({
           placeholderTextColor={C.textMuted}
           style={styles.districtSearchInput}
         />
-        <Text style={styles.districtFeeGroupTitle}>서울 지역</Text>
-        {visibleSeoul.map((district) => (
-          <View key={district} style={styles.districtFeeRow}>
-            <Text style={styles.districtFeeName}>{district}</Text>
-            <TextInput
-              value={String(settings.fees.districtFees.Seoul[district] || 0)}
-              onChangeText={(value) => updateDistrictFee(district, value)}
-              keyboardType="number-pad"
-              placeholder="15000"
-              placeholderTextColor="#6B7280"
-              style={styles.districtFeeInput}
-            />
-            <Text style={styles.districtFeeUnit}>원</Text>
-          </View>
-        ))}
-        <Text style={[styles.districtFeeGroupTitle, styles.districtFeeGroupSpacing]}>
-          경기도 지역
-        </Text>
-        {visibleGyeonggi.map((district) => (
-          <View key={district} style={styles.districtFeeRow}>
-            <Text style={styles.districtFeeName}>{district}</Text>
-            <TextInput
-              value={String(settings.fees.districtFees.Gyeonggi[district] || 0)}
-              onChangeText={(value) => updateDistrictFee(district, value)}
-              keyboardType="number-pad"
-              placeholder="15000"
-              placeholderTextColor="#6B7280"
-              style={styles.districtFeeInput}
-            />
-            <Text style={styles.districtFeeUnit}>원</Text>
-          </View>
-        ))}
+        {(['Seoul', 'Gyeonggi'] as const).map((region) => {
+          const label = region === 'Seoul' ? '서울 지역' : '경기도 지역';
+          const all =
+            region === 'Seoul' ? SEOUL_DISTRICTS : GYEONGGI_DISTRICTS;
+          const visible = region === 'Seoul' ? visibleSeoul : visibleGyeonggi;
+          const fees = settings.fees.districtFees[region];
+          const expanded = openRegions[region] || normalizedQuery.length > 0;
+          return (
+            <View key={region} style={styles.districtRegion}>
+              <Pressable
+                style={styles.districtRegionHeader}
+                onPress={() =>
+                  setOpenRegions((current) => ({
+                    ...current,
+                    [region]: !current[region],
+                  }))
+                }
+              >
+                <Text style={styles.districtFeeGroupTitle}>{label}</Text>
+                <View style={styles.districtRegionRight}>
+                  <Text style={styles.districtRegionCount}>
+                    {normalizedQuery
+                      ? `${visible.length}/${all.length}`
+                      : `${all.length}개`}
+                  </Text>
+                  <Ionicons
+                    name={expanded ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={C.textMuted}
+                  />
+                </View>
+              </Pressable>
+              {expanded &&
+                visible.map((district) => (
+                  <View key={district} style={styles.districtFeeRow}>
+                    <Text style={styles.districtFeeName}>{district}</Text>
+                    <TextInput
+                      value={String(fees[district] || 0)}
+                      onChangeText={(value) => updateDistrictFee(district, value)}
+                      keyboardType="number-pad"
+                      placeholder="15000"
+                      placeholderTextColor={C.textMuted}
+                      style={styles.districtFeeInput}
+                    />
+                    <Text style={styles.districtFeeUnit}>원</Text>
+                  </View>
+                ))}
+              {expanded && normalizedQuery.length > 0 && !visible.length && (
+                <Text style={styles.districtEmptyText}>검색 결과가 없습니다</Text>
+              )}
+            </View>
+          );
+        })}
       </View>
     </ScrollView>
   );
@@ -3103,9 +3128,19 @@ const makeStyles = (C: Palette) =>
     color: C.navy,
     fontSize: 15,
     fontWeight: '900',
-    marginBottom: 8,
   },
   districtFeeGroupSpacing: { marginTop: 16 },
+  districtRegion: { borderTopWidth: 1, borderTopColor: C.outline },
+  districtRegionHeader: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  districtRegionRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  districtRegionCount: { color: C.textMuted, fontSize: 11, fontWeight: '700' },
+  districtEmptyText: { color: C.textMuted, fontSize: 11, paddingVertical: 10 },
   districtFeeRow: {
     minHeight: 48,
     flexDirection: 'row',
