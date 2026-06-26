@@ -1,4 +1,5 @@
 import { levenshtein } from '../ocr/normalize';
+import { isSafe, sanitizeVendorQuery } from './sanitize';
 import { VendorCandidate, VendorDirectory, VendorVerification } from './types';
 
 const compact = (value: string) =>
@@ -40,7 +41,13 @@ export async function verifyVendor(
   const strong = options.strong ?? 0.82;
   const weak = options.weak ?? 0.5;
   const minLen = options.minNameLength ?? 2;
-  const query = ocrName.trim();
+
+  // 프로바이더 경계: 안전하지 않은 혼합/PII 질의는 네트워크 전에 거부한다(#51).
+  const cleaned = sanitizeVendorQuery(ocrName);
+  if (!isSafe(cleaned)) {
+    return { ...base('skipped', ocrName.trim()), reason: `unsafe:${cleaned.rejected}` };
+  }
+  const query = cleaned.safe;
 
   if (directory.id === 'null' || compact(query).length < minLen) {
     return base('skipped', query);
