@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -67,7 +67,26 @@ type TabKey =
   | 'settings';
 type DeliveryFilter = 'all' | 'pending' | 'completed';
 
-const C = {
+export type Palette = {
+  primary: string;
+  primaryContainer: string;
+  onPrimaryContainer: string;
+  navy: string;
+  background: string;
+  surface: string;
+  surfaceAlt: string;
+  outline: string;
+  text: string;
+  textMuted: string;
+  success: string;
+  successBg: string;
+  warning: string;
+  warningBg: string;
+  danger: string;
+  dangerBg: string;
+};
+
+const LIGHT: Palette = {
   primary: '#2457C5',
   primaryContainer: '#DCE6FF',
   onPrimaryContainer: '#0B2D6B',
@@ -86,14 +105,34 @@ const C = {
   dangerBg: '#FDE7E7',
 };
 
-const DARK_SURFACE = {
-  app: '#101827',
+const DARK: Palette = {
+  primary: '#6F9BF0',
+  primaryContainer: '#26344F',
+  onPrimaryContainer: '#DCE6FF',
+  navy: '#E8EEF7',
+  background: '#101827',
   surface: '#172033',
   surfaceAlt: '#243047',
-  text: '#F7FAFC',
-  muted: '#A9B4C7',
   outline: '#31405A',
+  text: '#F7FAFC',
+  textMuted: '#A9B4C7',
+  success: '#46B98A',
+  successBg: '#143025',
+  warning: '#E5934C',
+  warningBg: '#3A2A1A',
+  danger: '#E66A6A',
+  dangerBg: '#3A1F1F',
 };
+
+const C = LIGHT;
+
+type AppStyles = ReturnType<typeof makeStyles>;
+type ThemeValue = { C: Palette; styles: AppStyles };
+
+const ThemeContext = createContext<ThemeValue | null>(null);
+
+const useTheme = (): ThemeValue =>
+  useContext(ThemeContext) ?? { C: LIGHT, styles: makeStyles(LIGHT) };
 
 const formatWon = (value: number) => `${Math.round(value).toLocaleString('ko-KR')}원`;
 
@@ -144,6 +183,7 @@ function priorityOf(delivery: Delivery) {
 }
 
 function StatusBadge({ status }: { status: Delivery['status'] }) {
+  const { C, styles } = useTheme();
   const completed = status === 'completed';
   return (
     <View style={[styles.badge, completed ? styles.successBadge : styles.waitBadge]}>
@@ -178,6 +218,7 @@ function ScreenHeader({
   notificationCount?: number;
   onNotificationPress?: () => void;
 }) {
+  const { C, styles } = useTheme();
   return (
     <View style={styles.header}>
       <View style={styles.headerCopy}>
@@ -206,6 +247,7 @@ function SectionHeader({
   caption?: string;
   action?: React.ReactNode;
 }) {
+  const { C, styles } = useTheme();
   return (
     <View style={styles.sectionHeader}>
       <View>
@@ -228,6 +270,7 @@ function MetricCard({
   value: string;
   tone?: 'primary' | 'success' | 'neutral' | 'warning';
 }) {
+  const { C, styles } = useTheme();
   const color =
     tone === 'success'
       ? C.success
@@ -266,6 +309,7 @@ function TimeAlertCard({
   title: string;
   address: string;
 }) {
+  const { C, styles } = useTheme();
   const event = type === 'event';
   return (
     <View style={[styles.timeAlert, event ? styles.eventAlert : styles.deadlineAlert]}>
@@ -304,6 +348,7 @@ function ProgressCard({
   total: number;
   distance: number;
 }) {
+  const { C, styles } = useTheme();
   const progress = total ? completed / total : 0;
   return (
     <View style={styles.progressCard}>
@@ -345,6 +390,7 @@ function CompactDelivery({
   index: number;
   onPress: () => void;
 }) {
+  const { C, styles } = useTheme();
   const priority = priorityOf(delivery);
   return (
     <Pressable style={styles.compactDelivery} onPress={onPress}>
@@ -383,6 +429,7 @@ function HomeScreen({
   onSeeAll: () => void;
   onNotifications: () => void;
 }) {
+  const { C, styles } = useTheme();
   const pending = deliveries.filter((item) => item.status === 'pending');
   const completed = deliveries.length - pending.length;
   const optimized = optimizeByNearestNeighbor(pending);
@@ -459,6 +506,7 @@ function DeliveryCard({
   delivery: Delivery;
   onPress: () => void;
 }) {
+  const { C, styles } = useTheme();
   const urgent = isEventDelivery(delivery);
   const estimatedArrival = addMinutes(timeOf(delivery.deliveryDt), -18);
   return (
@@ -519,6 +567,7 @@ function DeliveryListScreen({
   onDeliveryPress: (delivery: Delivery) => void;
   onNotifications: () => void;
 }) {
+  const { C, styles } = useTheme();
   const [filter, setFilter] = useState<DeliveryFilter>('all');
   const filtered = deliveries.filter((delivery) =>
     filter === 'all' ? true : delivery.status === filter,
@@ -563,6 +612,7 @@ function DeliveryListScreen({
 }
 
 function RouteMap({ route }: { route: Delivery[] }) {
+  const { C, styles } = useTheme();
   const points = [
     { left: 49, top: 227 },
     { left: 96, top: 151 },
@@ -631,6 +681,7 @@ function RouteScreen({
   onDeliveryPress: (delivery: Delivery) => void;
   onNotifications: () => void;
 }) {
+  const { C, styles } = useTheme();
   const route = optimizeByNearestNeighbor(
     deliveries.filter((item) => item.status === 'pending'),
   );
@@ -754,6 +805,7 @@ function CalendarScreen({
   onDeliveryPress: (delivery: Delivery) => void;
   onNotifications: () => void;
 }) {
+  const { C, styles } = useTheme();
   const today = new Date();
   const [mode, setMode] = useState<CalendarMode>('month');
   const [cursor, setCursor] = useState(
@@ -1058,6 +1110,7 @@ function NotificationCard({
   time: string;
   icon: keyof typeof Ionicons.glyphMap;
 }) {
+  const { C, styles } = useTheme();
   const color = tone === 'danger' ? C.danger : tone === 'warning' ? C.warning : C.primary;
   const background =
     tone === 'danger' ? C.dangerBg : tone === 'warning' ? C.warningBg : C.primaryContainer;
@@ -1081,6 +1134,7 @@ function NotificationCard({
 }
 
 function NotificationsScreen() {
+  const { C, styles } = useTheme();
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
       <ScreenHeader
@@ -1149,6 +1203,7 @@ function SettingRow({
   trailing?: React.ReactNode;
   onPress?: () => void;
 }) {
+  const { C, styles } = useTheme();
   return (
     <Pressable style={styles.settingRow} onPress={onPress}>
       <View style={styles.settingIcon}>
@@ -1174,6 +1229,7 @@ function SettingsScreen({
   onSettingsChange: (settings: RouteloSettings) => void;
   onEditAccount: () => void;
 }) {
+  const { C, styles } = useTheme();
   const [districtQuery, setDistrictQuery] = useState('');
   const normalizedQuery = districtQuery.trim().replace(/\s/g, '');
   const visibleSeoul = SEOUL_DISTRICTS.filter((district) =>
@@ -1476,6 +1532,7 @@ function OnboardingModal({
   initial?: AccountState;
   onComplete: (state: AccountState) => void;
 }) {
+  const { C, styles } = useTheme();
   const [mode, setMode] = useState<'choice' | 'member'>(
     initial?.profile.accountMode === 'member' ? 'member' : 'choice',
   );
@@ -1743,6 +1800,7 @@ function DeliveryDetailSheet({
   onClose: () => void;
   onToggle: () => void;
 }) {
+  const { C, styles } = useTheme();
   const insets = useSafeAreaInsets();
   if (!delivery) return null;
   return (
@@ -1835,6 +1893,7 @@ const OCR_FIELD_ICONS: Record<OcrFieldKey, keyof typeof Ionicons.glyphMap> = {
 };
 
 function ConfidenceBadge({ field }: { field: OcrFieldResult }) {
+  const { C, styles } = useTheme();
   const confirmed = field.status === 'confirmed';
   const review = field.status === 'review';
   const color = confirmed ? C.success : review ? C.warning : C.danger;
@@ -1860,6 +1919,7 @@ function QualityMeter({
   value: number;
   icon: keyof typeof Ionicons.glyphMap;
 }) {
+  const { C, styles } = useTheme();
   const color = value >= 80 ? C.success : value >= 60 ? C.warning : C.danger;
   return (
     <View style={styles.qualityRow}>
@@ -1884,6 +1944,7 @@ function OcrScannerModal({
   onClose: () => void;
   onRegister: (delivery: Delivery) => void;
 }) {
+  const { C, styles } = useTheme();
   const [stage, setStage] = useState<ScanStage>('capture');
   const [imageUri, setImageUri] = useState<string>();
   const [assetInfo, setAssetInfo] = useState<{ width?: number; height?: number; fileSize?: number }>({});
@@ -2443,14 +2504,17 @@ export default function RouteloApp() {
   }, [account, activeTab, deliveries, fuelLogs, orders, settings]);
 
   const darkMode = settings.appearance.themeMode === 'dark';
+  const C = darkMode ? DARK : LIGHT;
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   return (
+    <ThemeContext.Provider value={{ C, styles }}>
     <SafeAreaView
-      style={[styles.app, darkMode && styles.appDark]}
+      style={styles.app}
       edges={['top', 'left', 'right']}
     >
       <StatusBar style={darkMode ? 'light' : 'dark'} />
-      <View style={[styles.mainContent, darkMode && styles.mainContentDark]}>{screen}</View>
+      <View style={styles.mainContent}>{screen}</View>
       <Pressable
         testID="open-ocr-scanner"
         style={[styles.scanFab, { bottom: 78 + insets.bottom }]}
@@ -2459,11 +2523,10 @@ export default function RouteloApp() {
         <Ionicons name="scan-outline" size={23} color="#FFFFFF" />
         <Text style={styles.scanFabText}>인수증 스캔</Text>
       </Pressable>
-      <View style={[styles.bottomNavBoundary, darkMode && styles.bottomNavBoundaryDark]}>
+      <View style={styles.bottomNavBoundary}>
         <View
           style={[
             styles.bottomNav,
-            darkMode && styles.bottomNavDark,
             {
               minHeight: 66 + insets.bottom,
               paddingBottom: Math.max(insets.bottom, 8),
@@ -2530,12 +2593,13 @@ export default function RouteloApp() {
         }}
       />
     </SafeAreaView>
+    </ThemeContext.Provider>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) =>
+  StyleSheet.create({
   app: { flex: 1, backgroundColor: C.background },
-  appDark: { backgroundColor: DARK_SURFACE.app },
   onboardingApp: { flex: 1, backgroundColor: C.background },
   onboardingContent: { padding: 22, paddingBottom: 40 },
   onboardingBrand: { alignItems: 'center', paddingVertical: 28 },
@@ -2620,7 +2684,6 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   mainContent: { flex: 1 },
-  mainContentDark: { backgroundColor: DARK_SURFACE.app },
   flex: { flex: 1 },
   screenContent: { paddingHorizontal: 18, paddingBottom: 28 },
   calendarModeRow: {
@@ -3413,17 +3476,13 @@ const styles = StyleSheet.create({
     elevation: 14,
     paddingTop: 6,
   },
-  bottomNavBoundaryDark: {
-    backgroundColor: DARK_SURFACE.surface,
-    borderTopColor: DARK_SURFACE.outline,
-    shadowColor: '#000000',
-  },
   bottomNav: { minHeight: 70, flexDirection: 'row', paddingBottom: 8 },
-  bottomNavDark: { backgroundColor: DARK_SURFACE.surface },
   navItem: { flex: 1, minHeight: 62, alignItems: 'center', justifyContent: 'center' },
   navIcon: { width: 50, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   navIconSelected: { backgroundColor: C.primaryContainer },
   navLabel: { color: C.textMuted, fontSize: 9, fontWeight: '600', marginTop: 3 },
   navLabelSelected: { color: C.primary, fontWeight: '800' },
   navNotificationDot: { position: 'absolute', right: 9, top: 5, width: 7, height: 7, borderRadius: 4, backgroundColor: C.danger, borderWidth: 1, borderColor: C.surface },
-});
+  });
+
+const styles = makeStyles(LIGHT);
