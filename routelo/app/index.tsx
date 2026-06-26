@@ -1491,6 +1491,24 @@ function SettingsScreen({
             />
           }
         />
+        <View style={styles.divider} />
+        <SettingRow
+          icon="globe-outline"
+          title="온라인 발주처 교차검증"
+          caption="발주처 업체명만 온라인 장소검색으로 대조합니다. 수령인 정보는 전송하지 않습니다."
+          trailing={
+            <Switch
+              value={settings.ocr.onlineVendorVerification}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  ...settings,
+                  ocr: { ...settings.ocr, onlineVendorVerification: enabled },
+                })
+              }
+              trackColor={{ true: C.primary }}
+            />
+          }
+        />
       </View>
 
       <SectionHeader title="앱 설정" />
