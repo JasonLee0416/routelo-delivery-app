@@ -62,6 +62,7 @@ export const DEFAULT_ROUTELO_SETTINGS: RouteloSettings = {
     allowAliasLearning: true,
     preserveUnmappedLines: true,
     blockAutoRegistrationWhenRequiredFieldsMissing: true,
+    onlineVendorVerification: false,
   },
   notifications: {
     strictDeadlineEnabled: true,

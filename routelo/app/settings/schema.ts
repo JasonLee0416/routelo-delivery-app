@@ -55,6 +55,8 @@ export type OcrSettings = {
   allowAliasLearning: boolean;
   preserveUnmappedLines: boolean;
   blockAutoRegistrationWhenRequiredFieldsMissing: boolean;
+  // 발주처 업체명을 온라인 장소검색으로 교차검증(옵트인, 기본 OFF). #48/#51
+  onlineVendorVerification: boolean;
 };
 
 export type NotificationSettings = {
