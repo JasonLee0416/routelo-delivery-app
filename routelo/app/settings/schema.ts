@@ -71,9 +71,11 @@ export type AppearanceSettings = {
   listDensity: 'comfortable' | 'compact';
 };
 
+export type NavApp = 'tmap' | 'kakao' | 'naver';
+
 export type RoutePreferenceSettings = {
   routeMode: 'deadline-first' | 'distance-first' | 'profit-first' | 'manual';
-  googleMapsHandoffEnabled: boolean;
+  navApp: NavApp;
   allowManualReorder: boolean;
 };
 

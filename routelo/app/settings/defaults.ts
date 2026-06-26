@@ -77,7 +77,7 @@ export const DEFAULT_ROUTELO_SETTINGS: RouteloSettings = {
   },
   route: {
     routeMode: 'deadline-first',
-    googleMapsHandoffEnabled: true,
+    navApp: 'tmap',
     allowManualReorder: true,
   },
   account: {

@@ -46,8 +46,9 @@ import {
   findDistrictByAddress,
   optimizeByNearestNeighbor,
 } from './services/maps';
+import { NAV_APP_LABEL, openNavigation } from './services/navigation';
 import { summarizeDailyProfit } from './services/profit';
-import { DEFAULT_ROUTELO_SETTINGS, RouteloSettings } from './settings';
+import { DEFAULT_ROUTELO_SETTINGS, NavApp, RouteloSettings } from './settings';
 import { GYEONGGI_DISTRICTS, SEOUL_DISTRICTS } from './settings/districts';
 import { settingsRepository } from './settings/native';
 import {
@@ -614,109 +615,63 @@ function DeliveryListScreen({
   );
 }
 
-function RouteMap({ route }: { route: Delivery[] }) {
-  const { C, styles } = useTheme();
-  const points = [
-    { left: 49, top: 227 },
-    { left: 96, top: 151 },
-    { left: 198, top: 120 },
-    { left: 269, top: 57 },
-  ];
-  const lines = [
-    { left: 60, top: 198, width: 68, rotate: '-55deg' },
-    { left: 110, top: 142, width: 106, rotate: '-15deg' },
-    { left: 213, top: 95, width: 89, rotate: '-42deg' },
-  ];
-  return (
-    <View style={styles.mapCard}>
-      <View style={[styles.mapRoad, styles.mapRoadOne]} />
-      <View style={[styles.mapRoad, styles.mapRoadTwo]} />
-      <View style={[styles.mapRoad, styles.mapRoadThree]} />
-      <View style={styles.mapPark} />
-      {lines.slice(0, route.length).map((line, index) => (
-        <View key={index}>
-          <View
-            style={[
-              styles.routeLineVisual,
-              {
-                left: line.left,
-                top: line.top,
-                width: line.width,
-                transform: [{ rotate: line.rotate }],
-              },
-            ]}
-          />
-          <View
-            style={[
-              styles.routeArrow,
-              {
-                top: index === 0 ? 176 : index === 1 ? 126 : 79,
-                left: index === 0 ? 85 : index === 1 ? 163 : 244,
-              },
-            ]}
-          >
-            <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
-          </View>
-        </View>
-      ))}
-      <View style={[styles.currentLocation, points[0]]}>
-        <View style={styles.currentLocationInner} />
-      </View>
-      {route.slice(0, 3).map((delivery, index) => (
-        <View key={delivery.id} style={[styles.mapPin, points[index + 1]]}>
-          <Text style={styles.mapPinText}>{index + 1}</Text>
-        </View>
-      ))}
-      <View style={styles.mapLegend}>
-        <View style={styles.googleDot} />
-        <Text style={styles.mapLegendText}>최적화된 배송 경로</Text>
-      </View>
-    </View>
-  );
-}
-
 function RouteScreen({
   deliveries,
+  navApp,
+  allowReorder,
   onDeliveryPress,
   onNotifications,
 }: {
   deliveries: Delivery[];
+  navApp: NavApp;
+  allowReorder: boolean;
   onDeliveryPress: (delivery: Delivery) => void;
   onNotifications: () => void;
 }) {
   const { C, styles } = useTheme();
-  const route = optimizeByNearestNeighbor(
-    deliveries.filter((item) => item.status === 'pending'),
+  const pending = deliveries.filter((item) => item.status === 'pending');
+  const pendingKey = pending.map((item) => item.id).join('|');
+  const [order, setOrder] = useState<Delivery[]>(() =>
+    optimizeByNearestNeighbor(pending),
   );
-  const next = route[0];
-  const totalDistance = route.reduce((sum, item) => sum + item.distanceKm, 0);
 
-  const openGoogleMaps = async () => {
-    if (!route.length) return;
-    const destination = route[route.length - 1].deliveryAddress;
-    const waypoints = route
-      .slice(0, -1)
-      .map((item) => item.deliveryAddress)
-      .join('|');
-    const url =
-      'https://www.google.com/maps/dir/?api=1' +
-      '&origin=37.5033,127.0442' +
-      `&destination=${encodeURIComponent(destination)}` +
-      (waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : '') +
-      '&travelmode=driving';
-    await Linking.openURL(url);
+  // 배송 목록이 바뀌면 추천 순서로 다시 초기화한다.
+  useEffect(() => {
+    setOrder(optimizeByNearestNeighbor(pending));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingKey]);
+
+  const next = order[0];
+  const totalDistance = order.reduce((sum, item) => sum + item.distanceKm, 0);
+
+  const move = (index: number, direction: -1 | 1) => {
+    setOrder((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.length) return current;
+      const copy = [...current];
+      [copy[index], copy[target]] = [copy[target], copy[index]];
+      return copy;
+    });
+  };
+
+  const startNavigation = () => {
+    if (!next) return;
+    openNavigation(navApp, {
+      name: next.deliveryAddress,
+      latitude: next.latitude,
+      longitude: next.longitude,
+    }).catch(() => undefined);
   };
 
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
       <ScreenHeader
-        eyebrow="ROUTE · OPTIMIZED"
+        eyebrow="ROUTE · STACK"
         title="배달 동선"
-        subtitle="마감과 이동 거리를 고려한 추천 경로입니다."
+        subtitle="배달 순서를 직접 정하고, 맨 위 목적지로 바로 안내받으세요."
         notificationCount={3}
         onNotificationPress={onNotifications}
       />
-      <RouteMap route={route} />
       {!!next && (
         <View style={styles.nextDestinationCard}>
           <View style={styles.nextDestinationHeader}>
@@ -760,26 +715,67 @@ function RouteScreen({
             <Pressable style={styles.secondaryButton} onPress={() => onDeliveryPress(next)}>
               <Text style={styles.secondaryButtonText}>배송 상세</Text>
             </Pressable>
-            <Pressable style={styles.primaryButton} onPress={openGoogleMaps}>
+            <Pressable style={styles.primaryButton} onPress={startNavigation}>
               <Ionicons name="navigate-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>Google 지도 열기</Text>
+              <Text style={styles.primaryButtonText}>
+                {NAV_APP_LABEL[navApp]}(으)로 안내 시작
+              </Text>
             </Pressable>
           </View>
         </View>
       )}
       <SectionHeader
-        title="경로 요약"
-        caption={`${route.length}개 목적지 · 총 ${totalDistance.toFixed(1)}km`}
+        title="배달 순서"
+        caption={`${order.length}개 목적지 · 총 ${totalDistance.toFixed(1)}km${
+          allowReorder ? ' · 위/아래로 순서 조정' : ''
+        }`}
       />
       <View style={styles.surfaceCard}>
-        {route.map((delivery, index) => (
+        {order.map((delivery, index) => (
           <View key={delivery.id}>
-            <CompactDelivery
-              delivery={delivery}
-              index={index}
-              onPress={() => onDeliveryPress(delivery)}
-            />
-            {index < route.length - 1 && <View style={styles.divider} />}
+            <View style={styles.routeStackRow}>
+              <View style={styles.routeStackOrder}>
+                <Text style={styles.routeStackOrderText}>{index + 1}</Text>
+              </View>
+              <Pressable
+                style={styles.routeStackBody}
+                onPress={() => onDeliveryPress(delivery)}
+              >
+                <Text style={styles.routeStackTitle} numberOfLines={1}>
+                  {delivery.productName}
+                </Text>
+                <Text style={styles.routeStackAddress} numberOfLines={1}>
+                  {delivery.deliveryAddress}
+                </Text>
+              </Pressable>
+              {allowReorder && (
+                <View style={styles.routeStackControls}>
+                  <Pressable
+                    disabled={index === 0}
+                    onPress={() => move(index, -1)}
+                    style={styles.routeStackArrow}
+                  >
+                    <Ionicons
+                      name="chevron-up"
+                      size={18}
+                      color={index === 0 ? C.outline : C.primary}
+                    />
+                  </Pressable>
+                  <Pressable
+                    disabled={index === order.length - 1}
+                    onPress={() => move(index, 1)}
+                    style={styles.routeStackArrow}
+                  >
+                    <Ionicons
+                      name="chevron-down"
+                      size={18}
+                      color={index === order.length - 1 ? C.outline : C.primary}
+                    />
+                  </Pressable>
+                </View>
+              )}
+            </View>
+            {index < order.length - 1 && <View style={styles.divider} />}
           </View>
         ))}
       </View>
@@ -1369,25 +1365,36 @@ function SettingsScreen({
         <SettingRow icon="car-outline" title="이동 수단" caption="업무용 차량 · 자동차" />
         <View style={styles.divider} />
         <SettingRow
-          icon="map-outline"
-          title="Google 지도 연결"
-          caption="경로 실행 시 Google 지도로 넘깁니다"
-          trailing={
-            <Switch
-              value={settings.route.googleMapsHandoffEnabled}
-              onValueChange={(enabled) =>
-                updateSettings({
-                  ...settings,
-                  route: {
-                    ...settings.route,
-                    googleMapsHandoffEnabled: enabled,
-                  },
-                })
-              }
-              trackColor={{ true: C.primary }}
-            />
-          }
+          icon="navigate-outline"
+          title="내비게이션 앱"
+          caption="경로 안내를 넘길 앱을 선택합니다"
         />
+        <View style={styles.navAppOptions}>
+          {(['tmap', 'kakao', 'naver'] as NavApp[]).map((app) => {
+            const active = settings.route.navApp === app;
+            return (
+              <Pressable
+                key={app}
+                style={[styles.navAppOption, active && styles.navAppOptionActive]}
+                onPress={() =>
+                  updateSettings({
+                    ...settings,
+                    route: { ...settings.route, navApp: app },
+                  })
+                }
+              >
+                <Text
+                  style={[
+                    styles.navAppOptionText,
+                    active && styles.navAppOptionTextActive,
+                  ]}
+                >
+                  {NAV_APP_LABEL[app]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
         <View style={styles.divider} />
         <SettingRow
           icon="swap-vertical-outline"
@@ -2480,6 +2487,8 @@ export default function RouteloApp() {
       return (
         <RouteScreen
           deliveries={deliveries}
+          navApp={settings.route.navApp}
+          allowReorder={settings.route.allowManualReorder}
           onDeliveryPress={setSelectedDelivery}
           onNotifications={openNotifications}
         />
@@ -3069,6 +3078,19 @@ const makeStyles = (C: Palette) =>
   priorityNotice: { marginTop: 13, padding: 11, borderRadius: 13, backgroundColor: C.dangerBg, flexDirection: 'row', alignItems: 'center', gap: 8 },
   priorityNoticeText: { flex: 1, color: C.danger, fontSize: 10, fontWeight: '700', lineHeight: 15 },
   routeButtons: { flexDirection: 'row', gap: 9, marginTop: 14 },
+  routeStackRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, gap: 12 },
+  routeStackOrder: { width: 26, height: 26, borderRadius: 13, backgroundColor: C.primaryContainer, alignItems: 'center', justifyContent: 'center' },
+  routeStackOrderText: { color: C.primary, fontSize: 12, fontWeight: '800' },
+  routeStackBody: { flex: 1 },
+  routeStackTitle: { color: C.text, fontSize: 14, fontWeight: '700' },
+  routeStackAddress: { color: C.textMuted, fontSize: 11, marginTop: 2 },
+  routeStackControls: { flexDirection: 'row', gap: 4 },
+  routeStackArrow: { width: 34, height: 34, borderRadius: 11, backgroundColor: C.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  navAppOptions: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 14 },
+  navAppOption: { flex: 1, minHeight: 44, borderRadius: 13, borderWidth: 1, borderColor: C.outline, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
+  navAppOptionActive: { borderColor: C.primary, backgroundColor: C.primaryContainer },
+  navAppOptionText: { color: C.textMuted, fontSize: 13, fontWeight: '700' },
+  navAppOptionTextActive: { color: C.primary, fontWeight: '800' },
   primaryButton: { flex: 1, minHeight: 48, borderRadius: 15, backgroundColor: C.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   secondaryButton: { flex: 1, minHeight: 48, borderRadius: 15, backgroundColor: C.primaryContainer, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12 },
