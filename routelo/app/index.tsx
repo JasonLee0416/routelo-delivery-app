@@ -72,6 +72,7 @@ export type Palette = {
   primaryContainer: string;
   onPrimaryContainer: string;
   navy: string;
+  emphasis: string;
   background: string;
   surface: string;
   surfaceAlt: string;
@@ -91,6 +92,7 @@ const LIGHT: Palette = {
   primaryContainer: '#DCE6FF',
   onPrimaryContainer: '#0B2D6B',
   navy: '#17243C',
+  emphasis: '#17243C',
   background: '#F5F7FB',
   surface: '#FFFFFF',
   surfaceAlt: '#EEF2F7',
@@ -110,6 +112,7 @@ const DARK: Palette = {
   primaryContainer: '#26344F',
   onPrimaryContainer: '#DCE6FF',
   navy: '#E8EEF7',
+  emphasis: '#243250',
   background: '#101827',
   surface: '#172033',
   surfaceAlt: '#243047',
@@ -2927,7 +2930,7 @@ const makeStyles = (C: Palette) =>
     marginTop: 11,
     padding: 18,
     borderRadius: 22,
-    backgroundColor: C.navy,
+    backgroundColor: C.emphasis,
   },
   progressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   progressLabel: { color: '#BFCBE0', fontSize: 11, fontWeight: '600' },
@@ -3070,7 +3073,7 @@ const makeStyles = (C: Palette) =>
   primaryButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   secondaryButton: { flex: 1, minHeight: 48, borderRadius: 15, backgroundColor: C.primaryContainer, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12 },
   secondaryButtonText: { color: C.primary, fontSize: 11, fontWeight: '800' },
-  notificationSummary: { minHeight: 95, borderRadius: 22, padding: 17, backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  notificationSummary: { minHeight: 95, borderRadius: 22, padding: 17, backgroundColor: C.emphasis, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   notificationSummaryLabel: { color: '#BFCBE0', fontSize: 10 },
   notificationSummaryValue: { color: '#FFFFFF', fontSize: 25, fontWeight: '800', marginTop: 5 },
   urgencyLegend: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -3083,7 +3086,7 @@ const makeStyles = (C: Palette) =>
   notificationTime: { color: C.textMuted, fontSize: 9 },
   notificationTitle: { color: C.text, fontSize: 14, fontWeight: '800', marginTop: 7 },
   notificationBody: { color: C.textMuted, fontSize: 10, lineHeight: 16, marginTop: 5 },
-  profileCard: { minHeight: 88, padding: 15, borderRadius: 22, backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  profileCard: { minHeight: 88, padding: 15, borderRadius: 22, backgroundColor: C.emphasis, flexDirection: 'row', alignItems: 'center', gap: 12 },
   profileAvatar: { width: 50, height: 50, borderRadius: 17, backgroundColor: '#E5ECFF', alignItems: 'center', justifyContent: 'center' },
   profileName: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   profileCaption: { color: '#AEBBD1', fontSize: 10, marginTop: 4 },
@@ -3403,7 +3406,7 @@ const makeStyles = (C: Palette) =>
     minHeight: 105,
     padding: 17,
     borderRadius: 22,
-    backgroundColor: C.navy,
+    backgroundColor: C.emphasis,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
